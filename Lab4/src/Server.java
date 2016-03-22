@@ -40,8 +40,8 @@ public class Server implements ServerRMI{
     }
 
     @Override
-    public String request(Request request) {
-        System.out.println("Received request: " + request.toString());
+    public String request(String request_str) {
+        Request request = new Request(request_str);
         String response = "ERROR";
         if (request.type.equals("REGISTER")) {
             response = register(request.plateNumber, request.owner);
@@ -50,7 +50,7 @@ public class Server implements ServerRMI{
             response = lookup(request.plateNumber);
         }
 
-        System.out.println("\t" + request.toString() + " :: " + response);
+        System.out.println(request.toString() + " :: " + response);
         return response;
     }
 

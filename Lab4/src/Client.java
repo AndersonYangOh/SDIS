@@ -24,14 +24,13 @@ public class Client {
         for (int i = 3; i < args.length; ++i) {
             reqString = reqString.concat(" " + args[i]);
         }
-        request = new Request(reqString);
 
         try {
             Registry registry = LocateRegistry.getRegistry(hostname);
             ServerRMI rmi = (ServerRMI) registry.lookup(remoteObjName);
 
-            String response = rmi.request(request);
-            System.out.println(reqString.toString() + response);
+            String response = rmi.request(reqString);
+            System.out.println(reqString + " :: " +  response);
         }
         catch (Exception e) {
             e.printStackTrace();
