@@ -1,12 +1,18 @@
 package Utils;
 
+import java.io.File;
 import java.net.Inet4Address;
 import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.security.MessageDigest;
 import java.util.Collections;
+import java.util.Random;
 
 public class Utils {
+    public static int random(int low, int upper) {
+        if(low > upper) throw new IllegalArgumentException("Low("+low+") needs to be lower or equal to upper("+upper+")");
+        Random rand = new Random();
+        return rand.nextInt(upper+1-low) + low;
+    }
     public static String sha256(String base) {
         try{
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -23,6 +29,9 @@ public class Utils {
         } catch(Exception ex){
             throw new RuntimeException(ex);
         }
+    }
+    public static String getFileID(File f) {
+        return sha256(f.getName() + f.lastModified());
     }
 
     public static String getIPv4() {
