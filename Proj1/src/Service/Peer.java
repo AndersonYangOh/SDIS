@@ -10,6 +10,7 @@ import Protocol.Message.Message;
 import Protocol.Message.MessageType;
 import Utils.Log;
 import Utils.Utils;
+import Protocol.Protocol;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -20,8 +21,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 public class Peer {
-    public static int BASE_PORT = 6000;
-
     private int id;
     private ServerSocket socket;
     private MCastSocketListener mc, mdb, mdr;
@@ -32,7 +31,7 @@ public class Peer {
         mdb = new MCastSocketListener(mdbAddr, mdbPort, "MDB");
         mdr = new MCastSocketListener(mdrAddr, mdrPort, "MDR");
 
-        int port = BASE_PORT+id;
+        int port = Protocol.BASE_TCP_PORT+id;
         try {
             socket = new ServerSocket(port);
         } catch (Exception e) { e.printStackTrace(); }
@@ -115,7 +114,9 @@ public class Peer {
                         Log.info("Successfully backed up chunk");
                         break;
                     }
-                    long deltaTime = System.currentTimeMillis() - currTime;
+                    long aux = System.currentTimeMillis();
+                    long deltaTime = aux - currTime;
+                    currTime = aux;
                     wait -= deltaTime;
                     if (wait <= 0) {
                         ++attempt;
@@ -130,7 +131,6 @@ public class Peer {
                             Log.warning("Backup replication degree not reached, retrying...("+attempt+"x "+wait+"ms)");
                         }
                     }
-                    currTime = System.currentTimeMillis();
                 }
                 mc.removeHandler(storedHandler);
             }

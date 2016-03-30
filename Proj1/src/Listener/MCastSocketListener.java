@@ -2,6 +2,7 @@ package Listener;
 
 import Protocol.Handler.Handler;
 import Protocol.Message.Message;
+import Protocol.Protocol;
 import Utils.Log;
 
 import java.io.IOException;
@@ -15,7 +16,7 @@ public class MCastSocketListener implements Runnable{
     private InetAddress address;
     private int port;
     private String name;
-    private ArrayList<Handler> handlers = new ArrayList<>();
+    public ArrayList<Handler> handlers = new ArrayList<>();
 
     public MCastSocketListener(InetAddress _address, int _port) {
         this(_address, _port, "");
@@ -29,7 +30,7 @@ public class MCastSocketListener implements Runnable{
     }
 
     public void listen() {
-        byte[] buffer = new byte[128000];
+        byte[] buffer = new byte[Protocol.MAX_CHUNK_SIZE + 512];
         boolean done = false;
         while (!done) {
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -84,6 +85,7 @@ public class MCastSocketListener implements Runnable{
             e.printStackTrace();
         }
     }
+
 
     private void handle(DatagramPacket packet) {
         try {

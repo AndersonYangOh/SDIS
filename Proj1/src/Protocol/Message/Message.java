@@ -49,14 +49,12 @@ public class Message {
             body = m.group("body").getBytes();
     }
 
-    public Message() {
-        type = MessageType.PUTCHUNK;
-        version = "1.0";
-        senderID = 1;
-        fileID = Utils.sha256("testfile.txt");
-        chunkNo = 1;
-        replDeg = 1;
-        body = "Hello from the otter side!".getBytes();
+    public Message(MessageType _type, String _ver, int _sId, String _fId) {
+        this(_type, _ver, _sId, _fId, 0, 0, null);
+    }
+
+    public Message(MessageType _type, String _ver, int _sId, String _fId, int _cNo) {
+        this(_type, _ver, _sId, _fId, _cNo, 0, null);
     }
 
     public Message(MessageType _type, String _ver, int _sId, String _fId, int _cNo, int _rDeg, byte[] _body) {
@@ -67,14 +65,6 @@ public class Message {
         chunkNo = _cNo;
         replDeg = _rDeg;
         body = _body;
-    }
-
-    public Message(MessageType _type, String _ver, int _sId, String _fId, int _cNo) {
-        this(_type, _ver, _sId, _fId, _cNo, 0, null);
-    }
-
-    public Message(MessageType _type, String _ver, int _sId, String _fId) {
-        this(_type, _ver, _sId, _fId, 0, 0, null);
     }
 
     public String header() {

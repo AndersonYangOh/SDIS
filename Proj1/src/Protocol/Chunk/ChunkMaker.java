@@ -1,5 +1,6 @@
 package Protocol.Chunk;
 
+import Protocol.Protocol;
 import Utils.Log;
 
 import java.io.BufferedInputStream;
@@ -11,7 +12,7 @@ public class ChunkMaker {
     Chunk[] chunks;
 
     public ChunkMaker(File file, String fileID, int replDeg) throws Exception {
-        final int MAX_SIZE = 64000;
+        final int MAX_SIZE = Protocol.MAX_CHUNK_SIZE;
         byte[] buffer = new byte[MAX_SIZE];
 
         int numChunks = (int)(file.length() / MAX_SIZE) + 1;
