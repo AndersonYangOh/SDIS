@@ -43,7 +43,7 @@ public class Log {
         warning(s, "");
     }
     public static final void warning(String s, String channel) {
-        System.out.println(getCurrTime()+" "+channel(channel)+"*WARNING* " + s);
+        System.err.println(getCurrTime()+" "+channel(channel)+"*WARNING* " + s);
     }
 
 

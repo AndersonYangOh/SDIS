@@ -5,6 +5,7 @@ import Protocol.Chunk.Chunk;
 import Protocol.Chunk.ChunkMaker;
 import Protocol.Handler.BackupHandler;
 import Protocol.Handler.LogHandler;
+import Protocol.Handler.ReplDegHandler;
 import Protocol.Handler.StoredHandler;
 import Protocol.Message.Message;
 import Protocol.Message.MessageType;
@@ -43,12 +44,15 @@ public class Peer {
         mdbThread.start();
         mdrThread.start();
 
-        mc.addHandler(new LogHandler());
+/*      mc.addHandler(new LogHandler());
         mdb.addHandler(new LogHandler());
-        mdr.addHandler(new LogHandler());
+        mdr.addHandler(new LogHandler());*/
 
         BackupHandler backupHandler = new BackupHandler(id, mc);
         mdb.addHandler(backupHandler);
+
+        ReplDegHandler replDegHandler = new ReplDegHandler(id);
+        mc.addHandler(replDegHandler);
 
         Log.info("Initialized peer with ID " + id);
         Log.info("Socket open on port "+socket.getLocalPort());
@@ -78,6 +82,7 @@ public class Peer {
                     } catch (Exception e) { e.printStackTrace(); }
                 }
                 else if (tokens[0].equals("RESTORE")) {
+                    restore(tokens[1]);
                 }
                 else if (tokens[0].equals("QUIT")) {
                     s.close();
@@ -94,50 +99,13 @@ public class Peer {
     }
 
     void backup(File file, int repl) {
-        String fileID = Utils.getFileID(file);
-        try {
-            ChunkMaker cm = new ChunkMaker(file, fileID, repl);
-            Chunk[] chunks = cm.getChunks();
-            for (Chunk c : chunks) {
-                Message putchunk_msg = new Message(MessageType.PUTCHUNK, "1.0", id, c.fileID, c.chunkNo, c.replDeg, c.data);
-                StoredHandler storedHandler = new StoredHandler(id, c);
-                mc.addHandler(storedHandler);
-
-                int time_window = 1000;
-                int wait = time_window;
-                long currTime = System.currentTimeMillis();
-                int attempt = 0;
-
-                mdb.send(putchunk_msg.toString());
-                while (true) {
-                    if (storedHandler.getCount() >= c.replDeg) {
-                        Log.info("Successfully backed up chunk");
-                        break;
-                    }
-                    long aux = System.currentTimeMillis();
-                    long deltaTime = aux - currTime;
-                    currTime = aux;
-                    wait -= deltaTime;
-                    if (wait <= 0) {
-                        ++attempt;
-                        if (attempt >= 5) {
-                            Log.error("Maximum number of attempts reached, couldn't backup chunk");
-                            break;
-                        }
-                        else {
-                            mdb.send(putchunk_msg.toString());
-                            time_window*=2;
-                            wait = time_window;
-                            Log.warning("Backup replication degree not reached, retrying...("+attempt+"x "+wait+"ms)");
-                        }
-                    }
-                }
-                mc.removeHandler(storedHandler);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        new Thread(new BackupFile(file, repl)).start();
     }
+
+    void restore(String filename) {
+        new Thread(new RestoreFile(filename)).start();
+    }
+
 
     public static void main(String[] args) throws Exception{
         InetAddress mcAddr, mdbAddr, mdrAddr;
@@ -167,6 +135,69 @@ public class Peer {
             System.out.println("Usage:");
             System.out.println("\tService <server_id>");
             System.out.println("\tService <server_id> <mc_addr> <mc_port> <mdb_addr> <mdb_port> <mdr_addr> <mdr_port>");
+        }
+    }
+
+    private class BackupFile implements Runnable {
+        File file;
+        int repl;
+
+        public BackupFile(File _file, int _repl) { file = _file; repl = _repl; }
+
+        @Override
+        public void run() {
+            String fileID = Utils.getFileID(file);
+            try {
+                ChunkMaker cm = new ChunkMaker(file, fileID, repl);
+                Chunk[] chunks = cm.getChunks();
+                for (Chunk c : chunks) {
+                    Message putchunk_msg = new Message(MessageType.PUTCHUNK, "1.0", id, c.fileID, c.chunkNo, c.replDeg, c.data);
+                    StoredHandler storedHandler = new StoredHandler(id, c);
+                    mc.addHandler(storedHandler);
+
+                    int time_window = 1000;
+                    int wait = time_window;
+                    long currTime = System.currentTimeMillis();
+                    int attempt = 0;
+
+                    mdb.send(putchunk_msg.toString());
+                    while (true) {
+                        if (storedHandler.getCount() >= c.replDeg) {
+                            Log.info("Successfully backed up chunk");
+                            break;
+                        }
+                        long aux = System.currentTimeMillis();
+                        long deltaTime = aux - currTime;
+                        currTime = aux;
+                        wait -= deltaTime;
+                        if (wait <= 0) {
+                            ++attempt;
+                            if (attempt >= 5) {
+                                Log.error("Maximum number of attempts reached, couldn't backup chunk");
+                                break;
+                            }
+                            else {
+                                mdb.send(putchunk_msg.toString());
+                                time_window*=2;
+                                wait = time_window;
+                                Log.warning("Backup replication degree not reached, retrying...("+attempt+"x "+wait+"ms)");
+                            }
+                        }
+                    }
+                    mc.removeHandler(storedHandler);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private class RestoreFile implements Runnable {
+        String filename;
+        public RestoreFile(String _filename) { filename = _filename; }
+
+        @Override
+        public void run() {
         }
     }
 }
