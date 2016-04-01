@@ -3,6 +3,7 @@ package Service;
 import Protocol.Chunk.Chunk;
 
 import java.util.ArrayList;
+import java.util.function.Predicate;
 
 public class Database {
     private static final int MAX_SIZE = 1500;
@@ -14,6 +15,20 @@ public class Database {
             return true;
         }
         return false;
+    }
+
+    public static boolean removeChunk(Chunk chunk) {
+        return chunks.removeIf(c2 -> {
+            if (c2.equals(chunk)) return true;
+            return false;
+        });
+    }
+
+    public static boolean deleteFile(String fileID) {
+        return chunks.removeIf(c2 -> {
+            if (c2.fileID.equals(fileID)) return true;
+            return false;
+        });
     }
 
     public static int getChunkReplDeg(Chunk chunk) {
@@ -40,7 +55,7 @@ public class Database {
         throw new IllegalArgumentException();
     }
 
-    public static int chunkSize() {
+    public static int numChunks() {
         return chunks.size();
     }
 }

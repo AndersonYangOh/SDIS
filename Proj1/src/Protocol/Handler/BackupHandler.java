@@ -43,7 +43,7 @@ public class BackupHandler extends Handler{
             }
             else if (storedHandler.getCount() < chunk.replDeg){
                 Database.addChunk(chunk);
-                Log.info("Stored chunk \""+chunk+"\" ("+Database.chunkSize()+" chunks total)");
+                Log.info("Stored chunk ["+chunk+"] ("+Database.numChunks()+" chunks total)");
                 mc.send(stored.toString());
             }
             else {

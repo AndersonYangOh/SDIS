@@ -13,6 +13,10 @@ public class Chunk {
 
     private ArrayList<Integer> storedIn = new ArrayList<>();
 
+    public Chunk(String _fileId, int _chunkNo) {
+        this(_fileId, _chunkNo, 0, null);
+    }
+
     public Chunk(Message m) {
         this(m.fileID, m.chunkNo, m.replDeg, m.body);
     }

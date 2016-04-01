@@ -33,10 +33,10 @@ public class Message {
         version = m.group("ver");
         senderID = Integer.parseInt(m.group("sID"));
         fileID = m.group("fID");
-        chunkNo = Integer.parseInt(m.group("cNo"));
-        if (m.group("cNo") == null && type != MessageType.DELETE) throw new IllegalArgumentException(msg_str);
-        else if (m.group("cNo") != null && type != MessageType.DELETE) chunkNo = Integer.parseInt(m.group("cNo"));
-        else throw new IllegalArgumentException(msg_str);
+
+        if (m.group("cNo") != null && type != MessageType.DELETE) chunkNo = Integer.parseInt(m.group("cNo"));
+        else if (m.group("cNo") == null && type != MessageType.DELETE) throw new IllegalArgumentException(msg_str);
+
         if (m.group("repl") != null) {
             if (type == MessageType.PUTCHUNK)
                 replDeg = Integer.parseInt(m.group("repl"));

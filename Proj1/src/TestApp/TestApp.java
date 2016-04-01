@@ -40,6 +40,9 @@ public class TestApp {
             else if (args[1].equals("RESTORE") && args.length == 3) {
                 request = "RESTORE " + args[2];
             }
+            else if (args[1].equals("DELETE") && args.length == 3) {
+                request = "DELETE " + args[2];
+            }
             else if (args[1].equals("QUIT") && args.length == 2) {
                 request = "QUIT";
             }
@@ -70,6 +73,7 @@ public class TestApp {
         System.out.println("--------------------");
         System.out.println(String.format(optFormat,"BACKUP <file_name> <replication_degree>", "Backup file with specified replication degree"));
         System.out.println(String.format(optFormat,"RESTORE <file_name>", "Restore file that was previously replicated"));
+        System.out.println(String.format(optFormat,"DELETE <file_name>", "Delete file from backup service"));
         System.out.println(String.format(optFormat,"QUIT", "Makes the peer quit"));
     }
 }

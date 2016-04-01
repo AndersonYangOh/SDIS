@@ -4,10 +4,7 @@ import Listener.MCastSocketListener;
 
 import Protocol.Chunk.Chunk;
 import Protocol.Chunk.ChunkMaker;
-import Protocol.Handler.BackupHandler;
-import Protocol.Handler.LogHandler;
-import Protocol.Handler.ReplDegHandler;
-import Protocol.Handler.StoredHandler;
+import Protocol.Handler.*;
 import Protocol.Message.Message;
 import Protocol.Message.MessageType;
 import Utils.Log;
@@ -56,6 +53,9 @@ public class Peer {
         ReplDegHandler replDegHandler = new ReplDegHandler(id);
         mc.addHandler(replDegHandler);
 
+        DeleteHandler deleteHandler = new DeleteHandler();
+        mc.addHandler(deleteHandler);
+
         Log.info("Initialized peer with ID " + id);
         Log.info("Socket open on port "+socket.getLocalPort());
 
@@ -76,15 +76,20 @@ public class Peer {
                 Log.info("Received request: " + request);
                 String[] tokens = request.split(" ");
                 if (tokens[0].equals("BACKUP")) {
-                    String filename = tokens[1];
                     int replDeg = Integer.parseInt(tokens[2]);
                     try {
-                        File f = new File(filename);
+                        File f = new File(tokens[1]);
                         backup(f, replDeg);
                     } catch (Exception e) { e.printStackTrace(); }
                 }
                 else if (tokens[0].equals("RESTORE")) {
                     restore(tokens[1]);
+                }
+                else if (tokens[0].equals("DELETE")) {
+                    try {
+                        File f = new File(tokens[1]);
+                        delete(f);
+                    } catch (Exception e) { e.printStackTrace(); }
                 }
                 else if (tokens[0].equals("QUIT")) {
                     s.close();
@@ -106,6 +111,10 @@ public class Peer {
 
     void restore(String filename) {
         new Thread(new RestoreFile(filename)).start();
+    }
+
+    void delete(File file) {
+        new Thread(new DeleteFile(file)).start();
     }
 
 
@@ -210,6 +219,18 @@ public class Peer {
 
         @Override
         public void run() {
+        }
+    }
+
+    private class DeleteFile implements Runnable {
+        File file;
+        public DeleteFile(File _file) { file = _file; }
+
+        @Override
+        public void run() {
+            String fileID = Utils.getFileID(file);
+            Message deleteMsg = new Message(MessageType.DELETE, "1.0", id, fileID);
+            mc.send(deleteMsg.toString());
         }
     }
 }
