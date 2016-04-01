@@ -1,6 +1,7 @@
 package Service;
 
 import Listener.MCastSocketListener;
+
 import Protocol.Chunk.Chunk;
 import Protocol.Chunk.ChunkMaker;
 import Protocol.Handler.BackupHandler;
@@ -11,6 +12,7 @@ import Protocol.Message.Message;
 import Protocol.Message.MessageType;
 import Utils.Log;
 import Utils.Utils;
+import Utils.Timeout;
 import Protocol.Protocol;
 
 import java.io.BufferedReader;
@@ -156,37 +158,47 @@ public class Peer {
                     mc.addHandler(storedHandler);
 
                     int time_window = 1000;
-                    int wait = time_window;
-                    long currTime = System.currentTimeMillis();
                     int attempt = 0;
 
                     mdb.send(putchunk_msg.toString());
+                    Thread t = new Thread(new Timeout(time_window));
+                    t.start();
+
+                    boolean success = false;
                     while (true) {
                         if (storedHandler.getCount() >= c.replDeg) {
-                            Log.info("Successfully backed up chunk");
+                            success = true;
                             break;
                         }
-                        long aux = System.currentTimeMillis();
-                        long deltaTime = aux - currTime;
-                        currTime = aux;
-                        wait -= deltaTime;
-                        if (wait <= 0) {
+                        if (!t.isAlive()) {
                             ++attempt;
                             if (attempt >= 5) {
-                                Log.error("Maximum number of attempts reached, couldn't backup chunk");
                                 break;
                             }
                             else {
                                 mdb.send(putchunk_msg.toString());
                                 time_window*=2;
-                                wait = time_window;
-                                Log.warning("Backup replication degree not reached, retrying...("+attempt+"x "+wait+"ms)");
+                                t = new Thread(new Timeout(time_window));
+                                t.start();
+                                Log.warning("Backup replication degree not reached, retrying...("+attempt+"x "+time_window+"ms)");
                             }
                         }
                     }
                     mc.removeHandler(storedHandler);
+                    if (!success) {
+                        Log.error("Maximum number of attempts reached, couldn't backup chunk");
+                        throw new Exception();
+                    }
+                    else Log.info("Successfully backed up chunk "+c);
                 }
+                Log.info("Sucessfully backed up "+
+                        file.getName()+
+                        " into "+chunks.length+
+                        " chunks with replication degree of " + repl);
             } catch (Exception e) {
+                Log.error("Failed to backup "+
+                        file.getName()+
+                        " with replication degree of " + repl);
                 e.printStackTrace();
             }
         }

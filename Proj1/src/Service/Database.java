@@ -5,6 +5,7 @@ import Protocol.Chunk.Chunk;
 import java.util.ArrayList;
 
 public class Database {
+    private static final int MAX_SIZE = 1500;
     private static ArrayList<Chunk> chunks = new ArrayList<>();
 
     public static boolean addChunk(Chunk chunk) {
@@ -23,6 +24,14 @@ public class Database {
     public static int getChunkRealReplDeg(Chunk chunk) {
         Chunk c = getChunk(chunk);
         return c.getRealReplDeg();
+    }
+
+    public static boolean hasChunk(Chunk chunk) {
+        try {
+            getChunk(chunk);
+            return true;
+        }
+        catch (IllegalArgumentException e) { return false; }
     }
 
     public static Chunk getChunk(Chunk chunk) {

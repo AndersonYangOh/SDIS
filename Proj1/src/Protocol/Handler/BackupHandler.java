@@ -8,9 +8,6 @@ import Service.Database;
 import Utils.Log;
 import Utils.Utils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-
 public class BackupHandler extends Handler{
 
     MCastSocketListener mc;
@@ -29,15 +26,32 @@ public class BackupHandler extends Handler{
 
         Chunk chunk = new Chunk(m);
         if (m.type == MessageType.PUTCHUNK) {
-            if (Database.addChunk(chunk)) {
-                Log.info("Stored chunk \""+chunk+"\" ("+Database.chunkSize()+" chunks total)");
-            }
-            else Log.warning("CHUNK ALREADY STORED - " + m.fileID + " | " + m.chunkNo);
+
+            int timeoutDelay = Utils.random(0, 400);
+            boolean exists = Database.hasChunk(chunk);
+
+            StoredHandler storedHandler = new StoredHandler(peerID, chunk);
+            mc.addHandler(storedHandler);
+            try {
+                Thread.sleep(timeoutDelay);
+            } catch (InterruptedException e) { e.printStackTrace(); }
 
             Message stored = new Message(MessageType.STORED, m.version, peerID, m.fileID, m.chunkNo);
-            int delay = Utils.random(0, 400);
-            try { Thread.sleep(delay); } catch (InterruptedException e) { e.printStackTrace(); }
-            mc.send(stored.toString());
+            if (exists) {
+                Log.warning("CHUNK ALREADY STORED - " + m.fileID + " | " + m.chunkNo);
+                mc.send(stored.toString());
+            }
+            else if (storedHandler.getCount() < chunk.replDeg){
+                Database.addChunk(chunk);
+                Log.info("Stored chunk \""+chunk+"\" ("+Database.chunkSize()+" chunks total)");
+                mc.send(stored.toString());
+            }
+            else {
+                Log.info("No need to store chunk "+chunk+
+                        " because the desired replication degree has been reached ("
+                        +storedHandler.getCount()+")");
+            }
+            mc.removeHandler(storedHandler);
         }
     }
 }
