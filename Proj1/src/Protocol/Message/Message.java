@@ -1,8 +1,8 @@
 package Protocol.Message;
 
-import Utils.Log;
 
-import java.io.ByteArrayInputStream;
+import Exception.MessageVersionMismatchException;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -20,22 +20,22 @@ public class Message {
     public byte[] body = null;
     public int body_offset = -1;
 
-    public Message(DatagramPacket packet) {
+    public Message(DatagramPacket packet) throws MessageVersionMismatchException {
         this(packet.getData(), packet.getLength());
     }
 
-    public Message(byte[] packet) {
+    public Message(byte[] packet) throws MessageVersionMismatchException {
         this(packet, packet.length);
     }
 
-    public Message(byte[] packet, int length) {
+    public Message(byte[] packet, int length) throws MessageVersionMismatchException {
         extract(new String(packet, 0, length));
         if (body_offset != -1) {
             body = Arrays.copyOfRange(packet, body_offset, length);
         }
     }
 
-    private void extract(String msg_str) {
+    private void extract(String msg_str) throws MessageVersionMismatchException {
         final String msgTypeRegex = "(?<type>PUTCHUNK|STORED|GETCHUNK|CHUNK|DELETE|REMOVED)";
         final String verRegex = "(?<ver>\\d\\.\\d)";
         final String senderIDRegex = "(?<sID>\\d+)";
@@ -52,6 +52,8 @@ public class Message {
 
         type = MessageType.valueOf(m.group("type"));
         version = m.group("ver");
+        if (!version.equals(type.version()))
+            throw new MessageVersionMismatchException(type+" - "+type.version());
         senderID = Integer.parseInt(m.group("sID"));
         fileID = m.group("fID");
 
@@ -72,17 +74,17 @@ public class Message {
 
     }
 
-    public Message(MessageType _type, String _ver, int _sId, String _fId) {
-        this(_type, _ver, _sId, _fId, 0, 0, null);
+    public Message(MessageType _type, int _sId, String _fId) {
+        this(_type, _sId, _fId, 0, 0, null);
     }
 
-    public Message(MessageType _type, String _ver, int _sId, String _fId, int _cNo) {
-        this(_type, _ver, _sId, _fId, _cNo, 0, null);
+    public Message(MessageType _type, int _sId, String _fId, int _cNo) {
+        this(_type, _sId, _fId, _cNo, 0, null);
     }
 
-    public Message(MessageType _type, String _ver, int _sId, String _fId, int _cNo, int _rDeg, byte[] _body) {
+    public Message(MessageType _type, int _sId, String _fId, int _cNo, int _rDeg, byte[] _body) {
         type = _type;
-        version = _ver;
+        version = type.version();
         senderID = _sId;
         fileID = _fId;
         chunkNo = _cNo;

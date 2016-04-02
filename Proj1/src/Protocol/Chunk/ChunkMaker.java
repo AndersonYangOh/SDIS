@@ -42,7 +42,7 @@ public class ChunkMaker {
             ChunkMaker cm = new ChunkMaker(new File("example.txt"), 1);
             Chunk[] chunks = cm.getChunks();
             for (Chunk c : chunks) {
-                Message putchunk_msg = new Message(MessageType.PUTCHUNK, "1.0", 1, c.fileID, c.chunkNo, c.replDeg, c.data);
+                Message putchunk_msg = new Message(MessageType.PUTCHUNK, 1, c.fileID, c.chunkNo, c.replDeg, c.data);
                 //putchunk_msg.body = "LOLOLOLOLOLOL".getBytes();
                 System.out.println("Chunk: "+putchunk_msg.body.length);
                 Message received = new Message(putchunk_msg.getBytes());

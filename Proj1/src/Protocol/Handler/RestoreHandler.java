@@ -28,7 +28,7 @@ public class RestoreHandler extends Handler{
 
         try {
             Chunk recoverChunk = Database.getChunk(chunk);
-            Message chunkMsg = new Message(MessageType.CHUNK, "1.0", peerID, recoverChunk.fileID, recoverChunk.chunkNo);
+            Message chunkMsg = new Message(MessageType.CHUNK, peerID, recoverChunk.fileID, recoverChunk.chunkNo);
             chunkMsg.body = recoverChunk.data;
 
             ChunkHandler chunkHandler = new ChunkHandler(chunk);
@@ -52,7 +52,7 @@ public class RestoreHandler extends Handler{
             mdr.removeHandler(chunkHandler);
         }
         catch (IllegalArgumentException e) {
-            Log.warning("Chunk ("+chunk+") not in database");
+            //Log.warning("Chunk ("+chunk+") not in database");
         }
     }
 }

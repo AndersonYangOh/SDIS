@@ -3,7 +3,6 @@ package Protocol.Handler;
 import Protocol.Chunk.Chunk;
 import Protocol.Message.Message;
 import Protocol.Message.MessageType;
-import Utils.Log;
 
 public class ChunkHandler extends Handler{
     private Chunk chunk;

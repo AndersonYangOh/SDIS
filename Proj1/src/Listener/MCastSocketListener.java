@@ -1,5 +1,6 @@
 package Listener;
 
+import Exception.MessageVersionMismatchException;
 import Protocol.Handler.Handler;
 import Protocol.Message.Message;
 import Protocol.Protocol;
@@ -101,6 +102,9 @@ public class MCastSocketListener implements Runnable{
         }
         catch (IllegalArgumentException e) {
             Log.warning("Received invalid message, discarding...");
+        }
+        catch (MessageVersionMismatchException e) {
+            Log.warning("Received unsupported message version, discarding... ("+e.getMessage()+")");
         }
     }
 }

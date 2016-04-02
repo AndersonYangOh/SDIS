@@ -35,7 +35,7 @@ public class BackupHandler extends Handler{
             Thread.sleep(timeoutDelay);
         } catch (InterruptedException e) { e.printStackTrace(); }
 
-        Message stored = new Message(MessageType.STORED, m.version, peerID, m.fileID, m.chunkNo);
+        Message stored = new Message(MessageType.STORED, peerID, m.fileID, m.chunkNo);
         if (exists) {
             Log.warning("CHUNK ALREADY STORED - " + m.fileID + " | " + m.chunkNo);
             mc.send(stored);

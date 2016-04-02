@@ -173,7 +173,7 @@ public class Peer {
                 ChunkMaker cm = new ChunkMaker(file, repl);
                 Chunk[] chunks = cm.getChunks();
                 for (Chunk c : chunks) {
-                    Message putchunk_msg = new Message(MessageType.PUTCHUNK, "1.0", id, c.fileID, c.chunkNo, c.replDeg, c.data);
+                    Message putchunk_msg = new Message(MessageType.PUTCHUNK, id, c.fileID, c.chunkNo, c.replDeg, c.data);
                     StoredHandler storedHandler = new StoredHandler(id, c);
                     mc.addHandler(storedHandler);
 
@@ -203,6 +203,9 @@ public class Peer {
                                 Log.warning("Backup replication degree not reached, retrying...("+attempt+"x "+time_window+"ms)");
                             }
                         }
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) { e.printStackTrace(); }
                     }
                     mc.removeHandler(storedHandler);
                     if (!success) {
@@ -220,6 +223,8 @@ public class Peer {
                         file.getName()+
                         " with replication degree of " + repl);
                 e.printStackTrace();
+                Log.warning("Cleaning up for backup failure...");
+                new Thread(new DeleteFile(file)).start();
             }
         }
     }
@@ -230,35 +235,67 @@ public class Peer {
 
         @Override
         public void run() {
-            String fileID = Utils.getFileID(file);
-            ArrayList<Chunk> chunks = new ArrayList<>();
+            try {
+                String fileID = Utils.getFileID(file);
+                ArrayList<Chunk> chunks = new ArrayList<>();
 
-            int currChunk = 0;
-            boolean lastChunk = false;
-            while (!lastChunk) {
-                Message getchunk_msg = new Message(MessageType.GETCHUNK, "1.0", id, fileID, currChunk);
-                Chunk chunk = new Chunk(fileID, currChunk);
-                ChunkHandler chunkHandler = new ChunkHandler(chunk);
-                chunkHandler.storeOnReceive(true);
+                int currChunk = 0;
+                boolean lastChunk = false;
+                while (!lastChunk) {
+                    Message getchunk_msg = new Message(MessageType.GETCHUNK, id, fileID, currChunk);
+                    Chunk chunk = new Chunk(fileID, currChunk);
 
-                mdr.addHandler(chunkHandler);
-                mc.send(getchunk_msg);
-                while (true) {
-                    if (chunkHandler.received()) {
-                        break;
+                    ChunkHandler chunkHandler = new ChunkHandler(chunk);
+                    chunkHandler.storeOnReceive(true);
+                    mdr.addHandler(chunkHandler);
+
+                    int time_window = 1000;
+                    int attempt = 0;
+
+                    mc.send(getchunk_msg);
+                    Thread t = new Thread(new Timeout(time_window));
+                    t.start();
+
+                    boolean success = false;
+                    while (true) {
+                        if (chunkHandler.received()) {
+                            success = true;
+                            break;
+                        }
+                        if (!t.isAlive()) {
+                            ++attempt;
+                            if (attempt >= 5) {
+                                break;
+                            }
+                            else {
+                                mc.send(getchunk_msg);
+                                time_window *= 2;
+                                t = new Thread(new Timeout(time_window));
+                                t.start();
+                                Log.warning("Couldn't get chunk, retrying...("+attempt+"x "+time_window+"ms)");
+                            }
+                        }
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) { e.printStackTrace(); }
                     }
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) { e.printStackTrace(); }
+                    mdr.removeHandler(chunkHandler);
+                    if (!success) {
+                        Log.error("Maximum number of attempts reached, couldn't get chunk");
+                        throw new Exception();
+                    }
+                    Chunk recoverChunk = chunkHandler.getStored();
+                    if (!chunks.contains(recoverChunk)) chunks.add(recoverChunk);
+                    Log.info("Got chunk ("+recoverChunk+") ("+recoverChunk.getDataSize()+" bytes)");
+                    if (recoverChunk.getDataSize() < Protocol.MAX_CHUNK_SIZE) lastChunk = true;
+                    ++currChunk;
                 }
-                mdr.removeHandler(chunkHandler);
-                Chunk recoverChunk = chunkHandler.getStored();
-                if (!chunks.contains(recoverChunk)) chunks.add(recoverChunk);
-                Log.info("Got chunk ("+recoverChunk+") ("+recoverChunk.getDataSize()+" bytes)");
-                if (recoverChunk.getDataSize() < Protocol.MAX_CHUNK_SIZE) lastChunk = true;
-                ++currChunk;
+                Log.info("Recovered "+chunks.size()+" chunks of file "+file.getName());
             }
-            Log.info("Recovered "+chunks.size()+" chunks of file "+file.getName());
+            catch (Exception e) {
+                Log.error("Failed to restore "+ file.getName());
+                e.printStackTrace();
+            }
         }
     }
 
@@ -269,7 +306,7 @@ public class Peer {
         @Override
         public void run() {
             String fileID = Utils.getFileID(file);
-            Message deleteMsg = new Message(MessageType.DELETE, "1.0", id, fileID);
+            Message deleteMsg = new Message(MessageType.DELETE, id, fileID);
             mc.send(deleteMsg);
         }
     }
