@@ -1,16 +1,15 @@
 package Service;
 
 import Listener.MCastSocketListener;
-
 import Protocol.Chunk.Chunk;
 import Protocol.Chunk.ChunkMaker;
 import Protocol.Handler.*;
 import Protocol.Message.Message;
 import Protocol.Message.MessageType;
-import Utils.Log;
-import Utils.Utils;
-import Utils.Timeout;
 import Protocol.Protocol;
+import Utils.Log;
+import Utils.Timeout;
+import Utils.Utils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -19,6 +18,7 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 
 public class Peer {
     private int id;
@@ -43,9 +43,6 @@ public class Peer {
         mdbThread.start();
         mdrThread.start();
 
-/*      mc.addHandler(new LogHandler());
-        mdb.addHandler(new LogHandler());
-        mdr.addHandler(new LogHandler());*/
 
         BackupHandler backupHandler = new BackupHandler(id, mc);
         mdb.addHandler(backupHandler);
@@ -56,8 +53,20 @@ public class Peer {
         DeleteHandler deleteHandler = new DeleteHandler();
         mc.addHandler(deleteHandler);
 
+        RestoreHandler restoreHandler = new RestoreHandler(id, mdr);
+        mc.addHandler(restoreHandler);
+
         Log.info("Initialized peer with ID " + id);
         Log.info("Socket open on port "+socket.getLocalPort());
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(20000);
+            } catch (InterruptedException e) { e.printStackTrace(); }
+            ArrayList<Chunk> chunks = Database.getChunks();
+            for (Chunk c : chunks)
+                System.out.println(c.data.length);
+        });
 
         run();
     }
@@ -83,7 +92,10 @@ public class Peer {
                     } catch (Exception e) { e.printStackTrace(); }
                 }
                 else if (tokens[0].equals("RESTORE")) {
-                    restore(tokens[1]);
+                    try {
+                        File f = new File(tokens[1]);
+                        restore(f);
+                    } catch (Exception e) { e.printStackTrace(); }
                 }
                 else if (tokens[0].equals("DELETE")) {
                     try {
@@ -109,8 +121,8 @@ public class Peer {
         new Thread(new BackupFile(file, repl)).start();
     }
 
-    void restore(String filename) {
-        new Thread(new RestoreFile(filename)).start();
+    void restore(File file) {
+        new Thread(new RestoreFile(file)).start();
     }
 
     void delete(File file) {
@@ -157,9 +169,8 @@ public class Peer {
 
         @Override
         public void run() {
-            String fileID = Utils.getFileID(file);
             try {
-                ChunkMaker cm = new ChunkMaker(file, fileID, repl);
+                ChunkMaker cm = new ChunkMaker(file, repl);
                 Chunk[] chunks = cm.getChunks();
                 for (Chunk c : chunks) {
                     Message putchunk_msg = new Message(MessageType.PUTCHUNK, "1.0", id, c.fileID, c.chunkNo, c.replDeg, c.data);
@@ -169,7 +180,7 @@ public class Peer {
                     int time_window = 1000;
                     int attempt = 0;
 
-                    mdb.send(putchunk_msg.toString());
+                    mdb.send(putchunk_msg);
                     Thread t = new Thread(new Timeout(time_window));
                     t.start();
 
@@ -185,7 +196,7 @@ public class Peer {
                                 break;
                             }
                             else {
-                                mdb.send(putchunk_msg.toString());
+                                mdb.send(putchunk_msg);
                                 time_window*=2;
                                 t = new Thread(new Timeout(time_window));
                                 t.start();
@@ -214,11 +225,40 @@ public class Peer {
     }
 
     private class RestoreFile implements Runnable {
-        String filename;
-        public RestoreFile(String _filename) { filename = _filename; }
+        File file;
+        public RestoreFile(File _file) { file = _file; }
 
         @Override
         public void run() {
+            String fileID = Utils.getFileID(file);
+            ArrayList<Chunk> chunks = new ArrayList<>();
+
+            int currChunk = 0;
+            boolean lastChunk = false;
+            while (!lastChunk) {
+                Message getchunk_msg = new Message(MessageType.GETCHUNK, "1.0", id, fileID, currChunk);
+                Chunk chunk = new Chunk(fileID, currChunk);
+                ChunkHandler chunkHandler = new ChunkHandler(chunk);
+                chunkHandler.storeOnReceive(true);
+
+                mdr.addHandler(chunkHandler);
+                mc.send(getchunk_msg);
+                while (true) {
+                    if (chunkHandler.received()) {
+                        break;
+                    }
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) { e.printStackTrace(); }
+                }
+                mdr.removeHandler(chunkHandler);
+                Chunk recoverChunk = chunkHandler.getStored();
+                if (!chunks.contains(recoverChunk)) chunks.add(recoverChunk);
+                Log.info("Got chunk ("+recoverChunk+") ("+recoverChunk.getDataSize()+" bytes)");
+                if (recoverChunk.getDataSize() < Protocol.MAX_CHUNK_SIZE) lastChunk = true;
+                ++currChunk;
+            }
+            Log.info("Recovered "+chunks.size()+" chunks of file "+file.getName());
         }
     }
 
@@ -230,7 +270,7 @@ public class Peer {
         public void run() {
             String fileID = Utils.getFileID(file);
             Message deleteMsg = new Message(MessageType.DELETE, "1.0", id, fileID);
-            mc.send(deleteMsg.toString());
+            mc.send(deleteMsg);
         }
     }
 }

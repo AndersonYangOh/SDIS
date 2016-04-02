@@ -25,33 +25,33 @@ public class BackupHandler extends Handler{
         if (m.senderID == peerID) return;
 
         Chunk chunk = new Chunk(m);
-        if (m.type == MessageType.PUTCHUNK) {
 
-            int timeoutDelay = Utils.random(0, 400);
-            boolean exists = Database.hasChunk(chunk);
+        int timeoutDelay = Utils.random(0, 400);
+        boolean exists = Database.hasChunk(chunk);
 
-            StoredHandler storedHandler = new StoredHandler(peerID, chunk);
-            mc.addHandler(storedHandler);
-            try {
-                Thread.sleep(timeoutDelay);
-            } catch (InterruptedException e) { e.printStackTrace(); }
+        StoredHandler storedHandler = new StoredHandler(peerID, chunk);
+        mc.addHandler(storedHandler);
+        try {
+            Thread.sleep(timeoutDelay);
+        } catch (InterruptedException e) { e.printStackTrace(); }
 
-            Message stored = new Message(MessageType.STORED, m.version, peerID, m.fileID, m.chunkNo);
-            if (exists) {
-                Log.warning("CHUNK ALREADY STORED - " + m.fileID + " | " + m.chunkNo);
-                mc.send(stored.toString());
-            }
-            else if (storedHandler.getCount() < chunk.replDeg){
-                Database.addChunk(chunk);
-                Log.info("Stored chunk ["+chunk+"] ("+Database.numChunks()+" chunks total)");
-                mc.send(stored.toString());
-            }
-            else {
-                Log.info("No need to store chunk "+chunk+
-                        " because the desired replication degree has been reached ("
-                        +storedHandler.getCount()+")");
-            }
-            mc.removeHandler(storedHandler);
+        Message stored = new Message(MessageType.STORED, m.version, peerID, m.fileID, m.chunkNo);
+        if (exists) {
+            Log.warning("CHUNK ALREADY STORED - " + m.fileID + " | " + m.chunkNo);
+            mc.send(stored);
         }
+        else if (storedHandler.getCount() < chunk.replDeg) {
+            Database.addChunk(chunk);
+            Log.info("Stored chunk ("+chunk+") ("+
+                    chunk.data.length+" bytes) ("+
+                    Database.numChunks()+" chunks total)");
+            mc.send(stored);
+        }
+        else {
+            Log.info("No need to store chunk "+chunk+
+                    " because the desired replication degree has been reached ("
+                    +storedHandler.getCount()+")");
+        }
+        mc.removeHandler(storedHandler);
     }
 }

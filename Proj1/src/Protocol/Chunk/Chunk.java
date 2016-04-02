@@ -36,9 +36,8 @@ public class Chunk {
         return false;
     }
 
-    public int getRealReplDeg() {
-        return storedIn.size();
-    }
+    public int getRealReplDeg() { return storedIn.size(); }
+    public int getDataSize() { return data.length; }
 
     @Override
     public boolean equals(Object o) {

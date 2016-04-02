@@ -1,7 +1,12 @@
 package Protocol.Message;
 
-import Utils.Utils;
+import Utils.Log;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -12,17 +17,33 @@ public class Message {
     public String fileID;
     public int chunkNo;
     public int replDeg;
-    public byte[] body;
+    public byte[] body = null;
+    public int body_offset = -1;
 
-    private final String msgTypeRegex = "(?<type>PUTCHUNK|STORED|GETCHUNK|CHUNK|DELETE|REMOVED)";
-    private final String verRegex = "(?<ver>\\d\\.\\d)";
-    private final String senderIDRegex = "(?<sID>\\d+)";
-    private final String fileIDRegex = "(?<fID>\\w{64})";
-    private final String chunkNoRegex = "(?:(?<cNo>\\d{1,6})\\s+)?";
-    private final String replRegex = "(?:(?<repl>\\d)\\s+)?";
-    private final String bodyRegex = "(?<body>.*$)?";
+    public Message(DatagramPacket packet) {
+        this(packet.getData(), packet.getLength());
+    }
 
-    public Message(String msg_str) {
+    public Message(byte[] packet) {
+        this(packet, packet.length);
+    }
+
+    public Message(byte[] packet, int length) {
+        extract(new String(packet, 0, length));
+        if (body_offset != -1) {
+            body = Arrays.copyOfRange(packet, body_offset, length);
+        }
+    }
+
+    private void extract(String msg_str) {
+        final String msgTypeRegex = "(?<type>PUTCHUNK|STORED|GETCHUNK|CHUNK|DELETE|REMOVED)";
+        final String verRegex = "(?<ver>\\d\\.\\d)";
+        final String senderIDRegex = "(?<sID>\\d+)";
+        final String fileIDRegex = "(?<fID>\\w{64})";
+        final String chunkNoRegex = "(?:(?<cNo>\\d{1,6})\\s+)?";
+        final String replRegex = "(?:(?<repl>\\d)\\s+)?";
+        final String bodyRegex = "(?<body>[\\s\\S]*\\Z)?";
+
         Pattern p = Pattern.compile( msgTypeRegex+"\\s+"+verRegex+"\\s+"+senderIDRegex+"\\s+"+
                         fileIDRegex+"\\s+"+chunkNoRegex+replRegex+"\\r\\n\\r\\n"+bodyRegex);
 
@@ -45,8 +66,10 @@ public class Message {
         else if (type == MessageType.PUTCHUNK)
             throw new IllegalArgumentException(msg_str);
 
-        if (m.group("body") != null)
-            body = m.group("body").getBytes();
+        if (m.group("body") != null) {
+            body_offset = m.start("body");
+        }
+
     }
 
     public Message(MessageType _type, String _ver, int _sId, String _fId) {
@@ -76,10 +99,21 @@ public class Message {
         return aux;
     }
 
+    public byte[] getBytes() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            out.write(header().getBytes());
+            if (body != null) out.write(body);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return out.toByteArray();
+    }
+
     @Override
     public String toString() {
         String aux = header();
-        if (type == MessageType.PUTCHUNK || type == MessageType.CHUNK) aux += body;
+        if (type == MessageType.PUTCHUNK || type == MessageType.CHUNK) aux += new String(body);
 
         return aux;
     }

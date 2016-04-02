@@ -22,7 +22,7 @@ public class Log {
     }
     public static final void messageBrief(Message msg, String add, String channel) {
         String header = msg.header();
-        info(add + header.substring(0, header.length()-4), channel);
+        info(add + header.substring(0, header.length()-4) + "("+msg.body.length+" bytes)", channel);
     }
 
     public static final void error(String s) {

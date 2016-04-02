@@ -43,15 +43,19 @@ public class MCastSocketListener implements Runnable{
         }
     }
 
-    public void send(String msg) {
+    public void send(byte[] packet) {
         if (socket != null){
-            DatagramPacket p = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, port);
+            DatagramPacket p = new DatagramPacket(packet, packet.length, address, port);
             try {
                 socket.send(p);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    public void send(Message message) {
+        send(message.getBytes());
     }
 
     public void close() { if (socket != null) socket.close(); }
@@ -89,7 +93,7 @@ public class MCastSocketListener implements Runnable{
 
     private void handle(DatagramPacket packet) {
         try {
-            Message m = new Message(new String(packet.getData(), 0, packet.getLength()));
+            Message m = new Message(packet);
             for (int i = 0; i < handlers.size(); ++i) {
                 handlers.get(i).msg = m;
                 new Thread(handlers.get(i)).start();

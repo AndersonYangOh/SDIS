@@ -3,7 +3,6 @@ package Service;
 import Protocol.Chunk.Chunk;
 
 import java.util.ArrayList;
-import java.util.function.Predicate;
 
 public class Database {
     private static final int MAX_SIZE = 1500;
@@ -53,6 +52,10 @@ public class Database {
         int i = chunks.indexOf(chunk);
         if (i != -1) return chunks.get(i);
         throw new IllegalArgumentException();
+    }
+
+    public static ArrayList<Chunk> getChunks() {
+        return chunks;
     }
 
     public static int numChunks() {
