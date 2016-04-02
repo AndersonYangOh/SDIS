@@ -2,9 +2,10 @@ package Protocol.Chunk;
 
 import Protocol.Message.Message;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 
-public class Chunk {
+public class Chunk implements Serializable{
     public String fileID;
     public int chunkNo;
     public int replDeg;
@@ -31,6 +32,14 @@ public class Chunk {
     public boolean stored(int peerID) {
         if (!storedIn.contains(peerID)) {
             storedIn.add(peerID);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean removed(int peerID) {
+        if (storedIn.contains(peerID)) {
+            storedIn.remove((Integer)peerID);
             return true;
         }
         return false;

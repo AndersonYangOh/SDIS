@@ -14,17 +14,17 @@ import java.util.ArrayList;
 
 public class MCastSocketListener implements Runnable{
     private MulticastSocket socket;
-    private InetAddress address;
+    private InetAddress group;
     private int port;
     private String name;
     public ArrayList<Handler> handlers = new ArrayList<>();
 
-    public MCastSocketListener(InetAddress _address, int _port) {
-        this(_address, _port, "");
+    public MCastSocketListener(InetAddress _group, int _port) {
+        this(_group, _port, "");
     }
 
-    public MCastSocketListener(InetAddress _address, int _port, String _name) {
-        address = _address;
+    public MCastSocketListener(InetAddress _group, int _port, String _name) {
+        group = _group;
         port = _port;
         name = _name;
         open();
@@ -46,7 +46,7 @@ public class MCastSocketListener implements Runnable{
 
     public void send(byte[] packet) {
         if (socket != null){
-            DatagramPacket p = new DatagramPacket(packet, packet.length, address, port);
+            DatagramPacket p = new DatagramPacket(packet, packet.length, group, port);
             try {
                 socket.send(p);
             } catch (IOException e) {
@@ -59,7 +59,12 @@ public class MCastSocketListener implements Runnable{
         send(message.getBytes());
     }
 
-    public void close() { if (socket != null) socket.close(); }
+    public void close() {
+        if (socket != null){
+            try { socket.leaveGroup(group); } catch (IOException e) { e.printStackTrace(); }
+            socket.close();
+        }
+    }
 
     public void addHandler(Handler h) {
         h.channel = name;
@@ -83,8 +88,8 @@ public class MCastSocketListener implements Runnable{
     private void open() {
         try {
             socket = new MulticastSocket(port);
-            socket.setTimeToLive(1);
-            socket.joinGroup(address);
+            socket.setTimeToLive(5);
+            socket.joinGroup(group);
         }
         catch (Exception e) {
             e.printStackTrace();

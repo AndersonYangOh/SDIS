@@ -8,9 +8,15 @@ import Service.Database;
 import Utils.Log;
 import Utils.Utils;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+
 public class BackupHandler extends Handler{
 
     MCastSocketListener mc;
+
+    HashMap<Chunk, Boolean> watchlist = new HashMap<>();
+    ArrayList<Chunk> blacklist = new ArrayList<>();
 
     public BackupHandler(int _peerID, MCastSocketListener _mc) {
         super(_peerID);
@@ -25,6 +31,17 @@ public class BackupHandler extends Handler{
         if (m.senderID == peerID) return;
 
         Chunk chunk = new Chunk(m);
+
+        if (watching(chunk)) {
+            System.out.println(watchlist);
+            watchlist.replace(chunk, true);
+            System.out.println(watchlist);
+        }
+
+        if (blacklist.contains(chunk)) {
+            System.err.println("BLACKLISTED");
+            return;
+        }
 
         int timeoutDelay = Utils.random(0, 400);
         boolean exists = Database.hasChunk(chunk);
@@ -53,5 +70,33 @@ public class BackupHandler extends Handler{
                     +storedHandler.getCount()+")");
         }
         mc.removeHandler(storedHandler);
+    }
+
+    public void watch(Chunk c) {
+        if (watchlist.containsKey(c))
+            watchlist.replace(c, false);
+        else watchlist.put(c, false);
+    }
+
+    public void ignore(Chunk c) {
+        if (watchlist.containsKey(c)) watchlist.remove(c);
+    }
+
+    public boolean watching(Chunk c) {
+        for (Chunk chunk : watchlist.keySet()) {
+            if (c.equals(chunk)) return true;
+        }
+        return false;
+    }
+
+    public boolean received(Chunk c) {
+        if (watchlist.containsKey(c))
+            return watchlist.get(c);
+        return false;
+    }
+
+    public void blacklist(Chunk c) {
+        if (!blacklist.contains(c))
+            blacklist.add(c);
     }
 }

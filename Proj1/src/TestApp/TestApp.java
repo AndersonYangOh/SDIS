@@ -43,6 +43,12 @@ public class TestApp {
             else if (args[1].equals("DELETE") && args.length == 3) {
                 request = "DELETE " + args[2];
             }
+            else if (args[1].equals("RECLAIM") && args.length == 3) {
+                request = "RECLAIM " + args[2];
+            }
+            else if (args[1].equals("CLEAR") && args.length == 3) {
+                request = "CLEAR";
+            }
             else if (args[1].equals("QUIT") && args.length == 2) {
                 request = "QUIT";
             }
@@ -74,6 +80,9 @@ public class TestApp {
         System.out.println(String.format(optFormat,"BACKUP <file_name> <replication_degree>", "Backup file with specified replication degree"));
         System.out.println(String.format(optFormat,"RESTORE <file_name>", "Restore file that was previously replicated"));
         System.out.println(String.format(optFormat,"DELETE <file_name>", "Delete file from backup service"));
+        System.out.println(String.format(optFormat,"RECLAIM <num_chunks>", "Reclaim the space occupied by the number of chunks specified"));
+        System.out.println(String.format(optFormat,"CLEAR", "Clear the peer's database"));
+        System.out.println(String.format(optFormat,"INTERACTIVE", "Send commands using stdin"));
         System.out.println(String.format(optFormat,"QUIT", "Makes the peer quit"));
     }
 }
