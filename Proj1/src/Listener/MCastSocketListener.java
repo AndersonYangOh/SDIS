@@ -13,6 +13,7 @@ import java.net.MulticastSocket;
 import java.util.ArrayList;
 
 public class MCastSocketListener implements Runnable{
+    private MulticastSocket peerSocket;
     private MulticastSocket socket;
     private InetAddress group;
     private int port;
@@ -45,14 +46,13 @@ public class MCastSocketListener implements Runnable{
     }
 
     public void send(byte[] packet) {
-        if (socket != null){
             DatagramPacket p = new DatagramPacket(packet, packet.length, group, port);
             try {
-                socket.send(p);
+                peerSocket.send(p);
+                //socket.send(p);
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        }
     }
 
     public void send(Message message) {
@@ -80,6 +80,10 @@ public class MCastSocketListener implements Runnable{
         return false;
     }
 
+    public void setPeerSocket(MulticastSocket socket) {
+        this.peerSocket = socket;
+    }
+
     @Override
     public void run() {
         listen();
@@ -88,6 +92,7 @@ public class MCastSocketListener implements Runnable{
     private void open() {
         try {
             socket = new MulticastSocket(port);
+            socket.setBroadcast(true);
             socket.setTimeToLive(5);
             socket.joinGroup(group);
         }

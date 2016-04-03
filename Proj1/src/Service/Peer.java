@@ -13,26 +13,29 @@ import Utils.Utils;
 
 import java.io.*;
 import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 
 public class Peer {
     private int id;
-    private ServerSocket socket;
+    private ServerSocket srvSocket;
+    private MulticastSocket socket;
     private MCastSocketListener mc, mdb, mdr;
     private BackupHandler backupHandler;
     private FileSystem fileSystem;
 
     public Peer(int _id, InetAddress mcAddr, int mcPort, InetAddress mdbAddr, int mdbPort, InetAddress mdrAddr, int mdrPort) {
         id = _id;
-        mc = new MCastSocketListener(mcAddr, mcPort, "MC ");
-        mdb = new MCastSocketListener(mdbAddr, mdbPort, "MDB");
-        mdr = new MCastSocketListener(mdrAddr, mdrPort, "MDR");
+        try { socket = new MulticastSocket(); } catch (IOException e) { e.printStackTrace(); }
+        (mc = new MCastSocketListener(mcAddr, mcPort, "MC ")).setPeerSocket(socket);
+        (mdb = new MCastSocketListener(mdbAddr, mdbPort, "MDB")).setPeerSocket(socket);
+        (mdr = new MCastSocketListener(mdrAddr, mdrPort, "MDR")).setPeerSocket(socket);
 
         int port = Protocol.BASE_TCP_PORT+id;
         try {
-            socket = new ServerSocket(port);
+            srvSocket = new ServerSocket(port);
         } catch (Exception e) { e.printStackTrace(); }
 
         Thread mcThread = new Thread(mc);
@@ -62,7 +65,7 @@ public class Peer {
         Database.loadDatabase();
 
         Log.info("Initialized peer with ID " + id);
-        Log.info("Socket open on port "+socket.getLocalPort());
+        Log.info("Socket open on port "+ srvSocket.getLocalPort());
 
         run();
     }
@@ -72,7 +75,7 @@ public class Peer {
         while (!done) {
             Socket s = null;
             try {
-                s = socket.accept();
+                s = srvSocket.accept();
             } catch (Exception e) { e.printStackTrace(); }
 
             try {
@@ -118,7 +121,7 @@ public class Peer {
         mc.close();
         mdr.close();
         mdb.close();
-        try { socket.close(); } catch (IOException e) { e.printStackTrace(); }
+        try { srvSocket.close(); } catch (IOException e) { e.printStackTrace(); }
         System.exit(0);
     }
 
@@ -172,7 +175,7 @@ public class Peer {
                 for (Chunk c : chunks) {
                     new BackupChunk(mc, mdb, c, id).run();
                 }
-                Log.info("Sucessfully backed up "+
+                Log.info("Successfully backed up "+
                         file.getName()+
                         " into "+chunks.length+
                         " chunks with replication degree of " + repl);
@@ -294,6 +297,7 @@ public class Peer {
 
                 Log.info("Removing chunk ("+chunk_to_remove+") ("+chunk_to_remove.getDataSize()+" bytes)");
 
+                // TODO: Remove from blacklist once backup is done (e.g. when STORED is received)
                 backupHandler.blacklist(chunk_to_remove);
 
                 Message removed_msg = new Message(MessageType.REMOVED, id, chunk_to_remove.fileID, chunk_to_remove.chunkNo);
