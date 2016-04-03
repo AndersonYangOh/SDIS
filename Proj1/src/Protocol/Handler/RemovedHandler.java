@@ -7,8 +7,8 @@ import Protocol.Message.MessageType;
 import Service.BackupChunk;
 import Service.Database;
 import Utils.Log;
-import Utils.Utils;
 import Utils.Timeout;
+import Utils.Utils;
 
 public class RemovedHandler extends Handler{
 

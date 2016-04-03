@@ -39,7 +39,7 @@ public class BackupHandler extends Handler{
         }
 
         if (blacklist.contains(chunk)) {
-            System.err.println("BLACKLISTED");
+            //System.err.println("BLACKLISTED");
             return;
         }
 
@@ -54,7 +54,7 @@ public class BackupHandler extends Handler{
 
         Message stored = new Message(MessageType.STORED, peerID, m.fileID, m.chunkNo);
         if (exists) {
-            Log.warning("CHUNK ALREADY STORED - " + m.fileID + " | " + m.chunkNo);
+            Log.info("Chunk already stored ("+chunk+")");
             mc.send(stored);
         }
         else if (storedHandler.getCount() < chunk.replDeg) {

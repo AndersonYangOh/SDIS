@@ -13,7 +13,6 @@ import Utils.Utils;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.net.MulticastSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -21,17 +20,15 @@ import java.util.ArrayList;
 public class Peer {
     private int id;
     private ServerSocket srvSocket;
-    private MulticastSocket socket;
     private MCastSocketListener mc, mdb, mdr;
     private BackupHandler backupHandler;
     private FileSystem fileSystem;
 
     public Peer(int _id, InetAddress mcAddr, int mcPort, InetAddress mdbAddr, int mdbPort, InetAddress mdrAddr, int mdrPort) {
         id = _id;
-        try { socket = new MulticastSocket(); } catch (IOException e) { e.printStackTrace(); }
-        (mc = new MCastSocketListener(mcAddr, mcPort, "MC ")).setPeerSocket(socket);
-        (mdb = new MCastSocketListener(mdbAddr, mdbPort, "MDB")).setPeerSocket(socket);
-        (mdr = new MCastSocketListener(mdrAddr, mdrPort, "MDR")).setPeerSocket(socket);
+        mc = new MCastSocketListener(mcAddr, mcPort, "MC ");
+        mdb = new MCastSocketListener(mdbAddr, mdbPort, "MDB");
+        mdr = new MCastSocketListener(mdrAddr, mdrPort, "MDR");
 
         int port = Protocol.BASE_TCP_PORT+id;
         try {
@@ -156,8 +153,8 @@ public class Peer {
         }
         else {
             System.out.println("Usage:");
-            System.out.println("\tService <server_id>");
-            System.out.println("\tService <server_id> <mc_addr> <mc_port> <mdb_addr> <mdb_port> <mdr_addr> <mdr_port>");
+            System.out.println("\tjava Service.Peer <server_id>");
+            System.out.println("\tjava Service.Peer <server_id> <mc_addr> <mc_port> <mdb_addr> <mdb_port> <mdr_addr> <mdr_port>");
         }
     }
 
