@@ -1,25 +1,35 @@
 'use strict';
 
-var _ = require('lodash');
-var KBucket = require('../src/kbucket.js');
-var Contact = require('../src/contact.js');
+var expect = require('chai').expect;
 
-var b1 = new KBucket();
-b1.add(new Contact({address: '127.0.0.1', port: 6000}))
-    .add(new Contact({address: '127.0.0.1', port: 6001}))
-    .add(new Contact({address: '127.0.0.1', port: 6002}))
-    .add(new Contact({address: '127.0.0.1', port: 6003}));
+describe('KBucket', function() {
+    var KBucket = require('../src/kbucket.js');
+    var Contact = require('../src/contact.js');
 
-_.each(b1.contacts(), (c)=>{console.log(c+"");});
-console.log("-----------------");
+    var b1 = new KBucket();
 
-b1.add(new Contact({address: '127.0.0.1', port: 6002}));
-b1.add(new Contact({address: '127.0.0.1', port: 6000}));
+    it('Should add new contacts', function() {
+        b1.add(new Contact({address: '127.0.0.1', port: 6000}))
+            .add(new Contact({address: '127.0.0.1', port: 6001}))
+            .add(new Contact({address: '127.0.0.1', port: 6002}))
+            .add(new Contact({address: '127.0.0.1', port: 6003}));
 
-_.each(b1.contacts(), (c)=>{console.log(c+"");});
-console.log("-----------------");
+        expect(b1.size()).to.equal(4);
+    });
 
-b1.remove(new Contact({address: '127.0.0.1', port: 6000}));
+    it('Should move existing contacts to tail', function() {
+        b1.add(new Contact({address: '127.0.0.1', port: 6002}));
+        b1.add(new Contact({address: '127.0.0.1', port: 6000}));
 
-_.each(b1.contacts(), (c)=>{console.log(c+"");});
-console.log("-----------------");
+        expect(b1.indexOf(new Contact({address: '127.0.0.1', port: 6000}))).to.equal(3);
+        expect(b1.indexOf(new Contact({address: '127.0.0.1', port: 6002}))).to.equal(2);
+    });
+
+    it('Should remove existing contacts', function() {
+        b1.remove(new Contact({address: '127.0.0.1', port: 6000}));
+
+        expect(b1.size()).to.equal(3);
+    });
+
+});
+
