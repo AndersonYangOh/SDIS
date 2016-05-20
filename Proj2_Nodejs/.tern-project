@@ -1,10 +1,15 @@
 {
     "libs": [
-        "browser"
+        "browser",
+        "ecma6",
+        "chai"
     ],
     "plugins": {
         "node": {
             "load": true
+        },
+        "modules": {
+            "dontLoad": true
         }
     }
 }

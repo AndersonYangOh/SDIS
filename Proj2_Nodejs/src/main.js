@@ -1,25 +1,13 @@
 'use strict';
 
-var _ = require('lodash');
-var KBucket = require('./kbucket.js');
+var RPC = require('./rpc.js');
 var Contact = require('./contact.js');
 
-var b1 = new KBucket();
-b1.add(new Contact({address: '127.0.0.1', port: 6000}))
-    .add(new Contact({address: '127.0.0.1', port: 6001}))
-    .add(new Contact({address: '127.0.0.1', port: 6002}))
-    .add(new Contact({address: '127.0.0.1', port: 6003}));
+var p1 = new RPC(new Contact({address: '127.0.0.1', port: 6001}));
+var p2 = new RPC(new Contact({address: '127.0.0.1', port: 6002}));
 
-_.each(b1.contacts(), (c)=>{console.log(c+"");});
-console.log("-----------------");
+p1.open(()=>{console.log("P1 open");});
+p2.open(()=>{console.log("P2 open");});
 
-b1.add(new Contact({address: '127.0.0.1', port: 6002}));
-b1.add(new Contact({address: '127.0.0.1', port: 6000}));
-
-_.each(b1.contacts(), (c)=>{console.log(c+"");});
-console.log("-----------------");
-
-b1.remove(new Contact({address: '127.0.0.1', port: 6000}));
-
-_.each(b1.contacts(), (c)=>{console.log(c+"");});
-console.log("-----------------");
+p1.send("Message from p1", new Contact({address: '127.0.0.1', port: 6002}));
+p2.send("Message from p2", new Contact({address: '127.0.0.1', port: 6001}));
