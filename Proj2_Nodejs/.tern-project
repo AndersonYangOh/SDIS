@@ -1,15 +1,12 @@
 {
+    "ecmaVersion": 6,
     "libs": [
         "browser",
-        "ecma6",
         "chai"
     ],
     "plugins": {
-        "node": {
-            "load": true
-        },
-        "modules": {
-            "dontLoad": true
-        }
+        "node": {},
+        "modules": {},
+        "node_resolve": {}
     }
 }

@@ -14,7 +14,7 @@ describe('KBucket', function() {
             .add(new Contact({address: '127.0.0.1', port: 6002}))
             .add(new Contact({address: '127.0.0.1', port: 6003}));
 
-        expect(b1.size()).to.equal(4);
+        expect(b1.length).to.equal(4);
     });
 
     it('Should move existing contacts to tail', function() {
@@ -28,7 +28,7 @@ describe('KBucket', function() {
     it('Should remove existing contacts', function() {
         b1.remove(new Contact({address: '127.0.0.1', port: 6000}));
 
-        expect(b1.size()).to.equal(3);
+        expect(b1.length).to.equal(3);
     });
 
 });

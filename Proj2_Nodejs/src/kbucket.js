@@ -6,11 +6,12 @@ var Contact = require('./contact.js');
 
 function KBucket() {
     this._contacts = [];
+    Object.defineProperty(this, 'length', {get: function(){return this._contacts.length;}});
 }
 
 KBucket.prototype.add = function(contact) {
     assert(contact instanceof Contact, "Invalid contact "+contact);
-    if (this.size() < 20) {
+    if (this.length < 20) {
         if (!this.has(contact)) {
             this._contacts.push(contact);
         }
@@ -21,6 +22,10 @@ KBucket.prototype.add = function(contact) {
         }
     }
     return this;
+};
+
+KBucket.prototype.getN = function(n) {
+    return _.slice(this._contacts, 0, n);
 };
 
 KBucket.prototype.remove = function(contact) {
@@ -38,10 +43,6 @@ KBucket.prototype.indexOf = function (contact) {
 KBucket.prototype.has = function(contact) {
     if (this.indexOf(contact) !== -1) return true;
     return false;
-};
-
-KBucket.prototype.size = function() {
-    return this._contacts.length;
 };
 
 KBucket.prototype.contacts = function() {
