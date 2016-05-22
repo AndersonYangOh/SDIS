@@ -1,13 +1,17 @@
 'use strict';
 
-var RPC = require('./rpc.js');
-var Contact = require('./contact.js');
+const path = require('path');
 
-var p1 = new RPC(new Contact({address: '127.0.0.1', port: 6001}));
-var p2 = new RPC(new Contact({address: '127.0.0.1', port: 6002}));
+const Node = require('./node.js');
+const RPC = require('./rpc.js');
+const Contact = require('./contact.js');
+const Bucket = require('./kbucket.js');
+const Message = require('./message.js');
+const FS = require('./storage/fs.js');
 
-p1.open(()=>{console.log("P1 open");});
-p2.open(()=>{console.log("P2 open");});
+var n1 = new Node(Contact({address:'127.0.0.1',port:6000}));
+var n2 = new Node(Contact({address:'127.0.0.1',port:6001}));
 
-p1.send("Message from p1", new Contact({address: '127.0.0.1', port: 6002}));
-p2.send("Message from p2", new Contact({address: '127.0.0.1', port: 6001}));
+n1.ping(n2).then((RTT)=>{console.log("Reply from "+n2.contact+": time="+RTT+"ms");});
+
+n1.router.lookup('NODE', n2.id).catch(e=>{console.error(e);});

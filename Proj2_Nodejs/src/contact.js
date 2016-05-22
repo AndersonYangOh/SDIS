@@ -2,8 +2,11 @@
 
 var assert = require('assert');
 var utils = require('./utils.js');
+var Key = require('./key.js');
 
 function Contact(options) {
+    if (!(this instanceof Contact)) return new Contact(options);
+
     assert(typeof options === 'object', "Invalid options " + options);
     assert(typeof options.address === 'string', "Invalid address " + options.address);
     assert(typeof options.port === 'number', "Invalid port " + options.port);
@@ -11,7 +14,7 @@ function Contact(options) {
 
     this.address = options.address;
     this.port = options.port;
-    this.nodeID = options.nodeID || utils.createID(this.fullAddress());
+    this.nodeID = new Key(options.nodeID || utils.createID(this.fullAddress()));
 }
 
 Contact.prototype.fullAddress = function() {

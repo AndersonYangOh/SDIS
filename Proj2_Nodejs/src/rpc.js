@@ -1,51 +1,73 @@
 'use strict';
 
-var inherits = require('util').inherits;
-var events = require('events');
-var dgram = require('dgram');
-var assert = require('assert');
+var Promise = require('bluebird');
+const EventEmitter = require('events');
+const assert = require('assert');
 
-var Contact = require('./contact.js');
+const Contact = require('./contact.js');
+const Message = require('./message.js');
 
-function RPC(contact) {
-    events.EventEmitter.call(this);
-    assert(contact instanceof Contact, 'Invalid contact: '+contact);
+class RPC extends EventEmitter {
+    constructor(contact) {
+        assert(contact instanceof Contact, 'Invalid contact: '+contact);
+        super();
 
-    this._contact = contact;
-}
+        this._contact = contact;
+        this._pending = {};
+    }
+    open(callback) {
+        if (callback) this.once('ready', callback);
 
-inherits(RPC, events.EventEmitter);
+        this._open();
+    }
+    close(callback) {
+        this._close();
+    }
+    send(message, contact, callback) {
+        assert(message instanceof Message, 'Invalid message provided');
+        assert(contact instanceof Contact, 'Invalid contact provided');
 
-RPC.prototype.open = function(callback) {
-    var self = this;
+        if (message.isRequest() && typeof callback === 'function') {
+            this._pending[message.id] = {
+                timeStamp: Date.now(),
+                callback: callback
+            };
+        }
 
-    function createSocket(port) {
-        self._socket = dgram.createSocket('udp4');
-        self._socket.on('message', (message, remote) => {
-            self.receive(message);
-        });
-        self._socket.on('listening', callback);
-        self._socket.on('error', (err) => { self.emit('error', err); });
-        self._socket.bind(port);
+        this._send(message.serialize(), contact);
+    }
+    // sendAsync(message, contact) {
+    //     return Promise.promisify(this.send);
+    //     var self = this;
+    //     return new Promise(function (resolve, reject) {
+    //         self.send(message, contact, function(err, msg) {
+    //             resolve(msg);
+    //         });
+    //     });
+    // }
+    receive(buffer, remote) {
+        assert(buffer instanceof Buffer, 'Invalid buffer received');
+
+        let message = Message.fromBuffer(buffer);
+
+        let type = message.isRequest() ? 'REQUEST' : 'RESPONSE';
+        console.log("Received "+type+" from ",remote);
+        console.log("----------------------------------");
+        console.log(message);
+
+        let pending = this._pending[message.id];
+        if (message.isResponse() && pending) {
+            pending.callback(null, message);
+            delete this._pending[message.id];
+        }
+
+        this.emit('incoming', message, remote);
     }
 
-    createSocket(self._contact.port);
-};
-
-RPC.prototype.close = function(callback) {
-    var self = this;
-    this._socket.close();
-};
-
-RPC.prototype.send = function(message, contact) {
-    var self = this;
-
-    this._socket.send(message, 0, message.length, contact.port, contact.address);
-};
-
-RPC.prototype.receive = function(buffer) {
-    var self = this;
-    console.log("Received: " + buffer);
-};
+    // Methods must be implemented by child classes
+    _open() {}
+    _close() {}
+    _send() {}
+}
 
 module.exports = RPC;
