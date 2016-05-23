@@ -1,15 +1,15 @@
 'use strict';
 
-var Promise = require('bluebird');
+const Promise = require('bluebird');
 const assert = require('assert');
 const EventEmitter = require('events');
 const inherits = require('util').inherits;
 const _ = require('lodash');
 
 const RPC = require('./rpc.js');
-const UDPTransport = require('./transport/udp.js');
 const Message = require('./message.js');
 const Contact = require('./contact.js');
+const KBucket = require('./kbucket.js');
 const constants = require('./constants.js');
 
 function Router(contact, options) {
@@ -17,51 +17,64 @@ function Router(contact, options) {
 
     EventEmitter.call(this);
 
-    options = options || {transport: new UDPTransport(contact)};
-
     this._contact = contact;
     this._kbuckets = {};
 
-    this._rpc = Promise.promisifyAll(options.transport);
-    this._rpc.open();
-    this._rpc.on('incoming', this.handleIncoming.bind(this));
-}
+    this._rpc = options.transport;
 
+    Object.defineProperty(this, 'length', {get: () => {return this.size();}});
+}
 inherits(Router, EventEmitter);
 
-Router.prototype.handleIncoming = function(message, remote) {
-    if (message.isRequest()) {
-        let contact = new Contact(message.params.contact);
-        switch (message.method) {
-        case 'PING':
-            console.log("Received PING from: " + contact);
-            let pong = Message.fromRequest(message, {contact: this._contact});
-            this._rpc.send(pong, contact);
-            break;
-        }
-    }
+Router.prototype.findNode = function(key) {
+    return this.lookup('NODE', key);
+};
+
+Router.prototype.findValue = function(key) {
+    return this.lookup('VALUE', key);
 };
 
 Router.prototype.lookup = function(type, key) {
-    return new Promise(function (resolve, reject) {
-        console.log(this._contact);
-        var state = {
-            type: type,
-            key: key,
-            limit: constants.ALPHA
-        };
-        state.shortList = this._getNearestContacts(key, state.limit, this._contact.nodeID);
-        state.closestNode = state.shortList[0];
-        // if (!state.closestNode) reject(new Error('Not connected to any peers'));
-        this._iterativeFind(state, state.shortList);
-    }.bind(this));
+    var state = {
+        type: type,
+        key: key,
+        limit: constants.ALPHA
+    };
+    state.shortList = this._getNearestContacts(key, state.limit, this._contact.nodeID);
+    state.closestNode = state.shortList[0];
+
+    if (!state.closestNode) throw new Error('Not connected to any peers');
+
+    state.closestNodeDistance = key.distance(state.closestNode.nodeID);
+
+    return this._iterativeFind(state, state.shortList);
 };
 
-Router.prototype._iterativeFind = function(state, contacts) {
-    return new Promise(function (resolve, reject) {
-        if (contacts.length === 0) return reject(new Error('Not connected to any peers'));
-        console.log("This shouldn't happen?");
-    }.bind(this));
+Router.prototype.addContact = function(contact) {
+    var bucketIdx = 0;
+
+    if (!this._kbuckets[bucketIdx]) {
+        this._kbuckets[bucketIdx] = new KBucket();
+    }
+
+    var b = this._kbuckets[bucketIdx];
+
+    b.add(contact, this.ping.bind(this));
+};
+
+Router.prototype.ping = function(contact) {
+    assert(contact instanceof Contact, 'Invalid contact provided');
+    return new Promise((resolve, reject) => {
+        let ping = Message.createMessage('PING', {contact: this._contact});
+        let RTT = Date.now();
+        this._rpc.sendAsync(ping, contact).then(()=>{
+                resolve(Date.now()-RTT);
+            });
+    });
+};
+
+Router.prototype.clean = function() {
+    this._kbuckets = [];
 };
 
 Router.prototype.size = function() {
@@ -70,25 +83,20 @@ Router.prototype.size = function() {
     return total;
 };
 
+Router.prototype._iterativeFind = function(state, contacts) {
+    return new Promise((resolve, reject) => {
+        return resolve();
+    });
+};
+
 Router.prototype._getNearestContacts = function(key, limit, nodeID) {
     var nearest = [];
     limit = Math.min(limit, this.size());
-    while (nearest.length < limit) {
+    return this._kbuckets[0].getN(limit);
+    for (let i = 0; i < this._kbuckets.length && nearest.length < limit; ++i) {
+        nearest = nearest.concat(this._kbucket[i].getN(limit-nearest.length));
     }
     return nearest;
-};
-
-Router.prototype.ping = function(contact) {
-    assert(contact instanceof Contact, 'Invalid contact provided');
-    var self = this;
-    return new Promise(function(resolve, reject) {
-        let ping = Message.createMessage('PING', {contact: self._contact});
-        let RTT = Date.now();
-        self._rpc.sendAsync(ping, contact)
-            .then(()=>{
-                resolve(Date.now()-RTT);
-            });
-    });
 };
 
 module.exports = Router;

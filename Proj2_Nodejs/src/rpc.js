@@ -1,8 +1,9 @@
 'use strict';
 
-var Promise = require('bluebird');
+const Promise = require('bluebird');
 const EventEmitter = require('events');
 const assert = require('assert');
+const chalk = require('chalk');
 
 const Contact = require('./contact.js');
 const Message = require('./message.js');
@@ -15,10 +16,8 @@ class RPC extends EventEmitter {
         this._contact = contact;
         this._pending = {};
     }
-    open(callback) {
-        if (callback) this.once('ready', callback);
-
-        this._open();
+    open() {
+        return this._open();
     }
     close(callback) {
         this._close();
@@ -36,23 +35,21 @@ class RPC extends EventEmitter {
 
         this._send(message.serialize(), contact);
     }
-    // sendAsync(message, contact) {
-    //     return Promise.promisify(this.send);
-    //     var self = this;
-    //     return new Promise(function (resolve, reject) {
-    //         self.send(message, contact, function(err, msg) {
-    //             resolve(msg);
-    //         });
-    //     });
-    // }
+    sendAsync(message, contact) {
+        return new Promise(function (resolve, reject) {
+            this.send(message, contact, function(err, msg) {
+                if (err) return reject(err);
+                return resolve(msg);
+            });
+        }.bind(this));
+    }
     receive(buffer, remote) {
         assert(buffer instanceof Buffer, 'Invalid buffer received');
 
         let message = Message.fromBuffer(buffer);
 
         let type = message.isRequest() ? 'REQUEST' : 'RESPONSE';
-        console.log("Received "+type+" from ",remote);
-        console.log("----------------------------------");
+        console.log(chalk.black.bgGreen("Received "+type+" from ")+chalk.black.bgBlue(new Contact(remote)));
         console.log(message);
 
         let pending = this._pending[message.id];

@@ -17,6 +17,10 @@ function Contact(options) {
     this.nodeID = new Key(options.nodeID || utils.createID(this.fullAddress()));
 }
 
+Contact.prototype.equals = function(c) {
+    return (c instanceof Contact) && this.nodeID.equals(c.nodeID);
+};
+
 Contact.prototype.fullAddress = function() {
     return this.address+":"+this.port;
 };

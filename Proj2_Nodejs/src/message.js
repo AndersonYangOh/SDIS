@@ -5,6 +5,7 @@ var hat = require('hat');
 var _ = require('lodash');
 
 var constants = require('./constants.js');
+var Contact = require('./contact.js');
 
 
 var Message = (function (){
@@ -25,6 +26,12 @@ var Message = (function (){
         for (var n in spec) {
             this[n] = spec[n];
         }
+
+        Object.defineProperty(this, 'contact', {get:()=>{
+            if (this.isRequest())
+                return new Contact(this.params.contact);
+            else return new Contact(this.result.contact);
+        }});
     }
 
     Message.prototype.isRequest = function() {

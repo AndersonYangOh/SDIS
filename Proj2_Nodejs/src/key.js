@@ -45,6 +45,10 @@ Key.compare = function(key1, key2) {
     return 0;
 };
 
+Key.prototype.equals = function(k) {
+    return k instanceof Key && this.key === k.key;
+};
+
 Key.prototype.distance = function(key) {
     return Key.distance(this, key);
 };

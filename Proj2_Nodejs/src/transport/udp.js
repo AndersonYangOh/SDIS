@@ -1,6 +1,7 @@
 'use strict';
 
 const dgram = require('dgram');
+const Promise = require('bluebird');
 
 const RPC = require('../rpc.js');
 
@@ -8,28 +9,29 @@ class UDPTransport extends RPC {
     constructor(contact) {
         super(contact);
 
+        this._connected = false;
         this._socket = undefined;
     }
     _open() {
-        var self = this;
+        return new Promise(function (resolve, reject) {
+            let port = this._contact.port;
+            if (this._connected) return resolve(port);
 
-        function createSocket(port) {
-            self._socket = dgram.createSocket('udp4');
-            self._socket.on('message', (buffer, remote) => {
-                self.receive(buffer, remote);
+            this._socket = dgram.createSocket('udp4');
+            this._socket.on('message', (buffer, remote) => {
+                this.receive(buffer, remote);
             });
-            self._socket.on('listening', () => {
+            this._socket.on('listening', () => {
                 console.log("UDP Socket open on port:",port);
-                self.emit('ready');
+                this._connected = true;
+                resolve(port);
             });
-            self._socket.on('error', (err) => {
+            this._socket.on('error', (err) => {
                 console.error("UDP Socket couldn't open on port:",port);
-                self.emit('ready', err);
+                reject(err);
             });
-            self._socket.bind(port);
-        }
-
-        createSocket(self._contact.port);
+            this._socket.bind(port);
+        }.bind(this));
     }
     _close() {
         this._socket.close();
