@@ -27,6 +27,10 @@ class Node extends EventEmitter {
         if (seed instanceof Node) seed = seed.contact;
         else if (typeof seed == 'object') seed = new Contact(seed);
 
+        // Main chain
+        const openRPC = () => {
+            return this._rpc.open();
+        };
         const connectToSeed = () => {
             this._rpc.removeAllListeners('incoming');
             this._rpc.on('incoming', this.incoming.bind(this));
@@ -37,33 +41,39 @@ class Node extends EventEmitter {
             }
             else throw new ReferenceError("No seed provided");
         };
-
-        const findSelf = (RTT) => {
+        const findSelfInNetwork = (RTT) => {
             return this._router.findNode(this.id);
         };
+        const handleNodes = (nodes) => {
+            if (nodes.length === 0) {
+                throw new Router.EmptyNetworkError("Couldn't find any nodes using given seed");
+            }
+            return nodes;
+        };
 
-        return this._rpc.open()
+        // Error handling
+        const handleNoSeed = (err) => {
+            global.log.warning(err.toString());
+            return;
+        };
+        const handleEmptyNetwork = (err) => {
+            global.log.warning(err.toString());
+            return;
+        };
+        const handleExceptions = (e) => {
+            global.log.error("Error bootstraping\n", e);
+            this.disconnect();
+            throw e;
+        };
+
+        // Bootstrap chain
+        return openRPC()
             .then(connectToSeed)
-            .then(findSelf)
-            .then((nodes) => {
-                if (nodes.length === 0) {
-                    throw new Router.EmptyNetworkError("Couldn't find any nodes using given seed");
-                }
-                return nodes;
-            })
-            .catch(ReferenceError, (err) => {
-                global.log.warning(err.toString());
-                return;
-            })
-            .catch(Router.EmptyNetworkError, (err) => {
-                global.log.warning(err.toString());
-                return;
-            })
-            .catch((err) => {
-                global.log.error("Error bootstraping\n", err);
-                this.disconnect();
-                throw err;
-            });
+            .then(findSelfInNetwork)
+            .then(handleNodes)
+            .catch(ReferenceError, handleNoSeed)
+            .catch(Router.EmptyNetworkError, handleEmptyNetwork)
+            .catch(handleExceptions);
     }
     disconnect() {
         this._rpc.close();
