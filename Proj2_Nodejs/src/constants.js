@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-    ALPHA: 3,
+    ALPHA: 1,
     B: 160,
-    K: 1
+    K: 20
 };

@@ -32,16 +32,23 @@ class RPC extends EventEmitter {
                 callback: callback
             };
         }
+        else if (message.isResponse() && typeof callback === 'function')
+            callback();
 
         this._send(message.serialize(), contact);
     }
     sendAsync(message, contact) {
-        return new Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
             this.send(message, contact, function(err, msg) {
                 if (err) return reject(err);
                 return resolve(msg);
             });
-        }.bind(this));
+        })
+            .timeout(1000).catch(Promise.TimeoutError, (e) => {
+                global.log.error("Didn't get response in time for message:\n", message);
+                delete this._pending[message.id];
+                throw e;
+            });
     }
     receive(buffer, remote) {
         assert(buffer instanceof Buffer, 'Invalid buffer received');
@@ -49,8 +56,8 @@ class RPC extends EventEmitter {
         let message = Message.fromBuffer(buffer);
 
         let type = message.isRequest() ? 'REQUEST' : 'RESPONSE';
-        console.log(chalk.black.bgGreen("Received "+type+" from ")+chalk.black.bgBlue(new Contact(remote)));
-        console.log(message);
+        // console.log(chalk.black.bgGreen("Received "+type+" from ")+chalk.black.bgCyan(new Contact(remote)));
+        // console.log(message);
 
         let pending = this._pending[message.id];
         if (message.isResponse() && pending) {

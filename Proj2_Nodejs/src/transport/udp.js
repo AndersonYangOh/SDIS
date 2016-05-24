@@ -13,7 +13,7 @@ class UDPTransport extends RPC {
         this._socket = undefined;
     }
     _open() {
-        return new Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
             let port = this._contact.port;
             if (this._connected) return resolve(port);
 
@@ -31,7 +31,8 @@ class UDPTransport extends RPC {
                 reject(err);
             });
             this._socket.bind(port);
-        }.bind(this));
+            return undefined;
+        });
     }
     _close() {
         this._socket.close();

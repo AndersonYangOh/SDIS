@@ -22,8 +22,8 @@ Key.toBuffer = function(key) {
 
 Key.distance = function(key1, key2) {
     var dist = new Buffer(constants.B/8);
-    var b1 = Key.toBuffer(key1);
-    var b2 = Key.toBuffer(key2);
+    var b1 = Buffer.isBuffer(key1) ? key1 : Key.toBuffer(key1);
+    var b2 = Buffer.isBuffer(key2) ? key2 : Key.toBuffer(key2);
 
     for (let i = 0; i < constants.B/8; ++i)
         dist[i] = b1[i] ^ b2[i];
@@ -32,8 +32,8 @@ Key.distance = function(key1, key2) {
 };
 
 Key.compare = function(key1, key2) {
-    var b1 = Key.toBuffer(key1);
-    var b2 = Key.toBuffer(key2);
+    var b1 = Buffer.isBuffer(key1) ? key1 : Key.toBuffer(key1);
+    var b2 = Buffer.isBuffer(key2) ? key2 : Key.toBuffer(key2);
 
     for (let i = 0; i < b1.length; ++i) {
         if (b1[i] !== b2[i]) {
