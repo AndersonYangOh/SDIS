@@ -5,10 +5,6 @@ var expect = require('chai').expect;
 describe('Contact', function() {
     var Contact = require('../src/contact.js');
 
-    it('Should throw with invalid options', function () {
-        expect(Contact).to.throw(/invalid options/i);
-    });
-
     it('Should throw with invalid address', function () {
         expect(function(){new Contact({address: 1});})
             .to.throw(/invalid address/i);

@@ -4,7 +4,7 @@ var assert = require('assert');
 var utils = require('./utils.js');
 var Key = require('./key.js');
 
-function Contact({ address, port, id }) {
+function Contact({ address='127.0.0.1', port, id } = {}) {
     if (!(this instanceof Contact)) return new Contact(arguments[0]);
 
     assert(typeof address === 'string', "Invalid address " + address);

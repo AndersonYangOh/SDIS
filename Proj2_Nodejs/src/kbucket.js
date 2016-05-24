@@ -6,6 +6,7 @@ const Promise = require('bluebird');
 
 const Contact = require('./contact.js');
 const constants = require('./constants.js');
+const Key = require('./key.js');
 
 function KBucket() {
     this._contacts = [];
@@ -45,6 +46,14 @@ KBucket.prototype.add = function(contact, ping) {
     return this;
 };
 
+KBucket.prototype.head = function() {
+    return _.head(this._contacts);
+};
+
+KBucket.prototype.tail = function() {
+    return _.tail(this._contacts);
+};
+
 KBucket.prototype.getN = function(n) {
     return _.slice(this._contacts, 0, n);
 };
@@ -62,6 +71,14 @@ KBucket.prototype.indexOf = function (contact) {
 
 KBucket.prototype.has = function(contact) {
     return this.indexOf(contact) !== -1;
+};
+
+KBucket.prototype.nearest = function(key) {
+    return _.chain(this._contacts)
+        .clone()
+        .map(c => { return {contact: c, distance: key.distance(c.nodeID)}; })
+        .sort((c1, c2) => Key.compare(c1.distance, c2.distance))
+        .value();
 };
 
 KBucket.prototype.contacts = function() {
