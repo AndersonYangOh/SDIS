@@ -4,21 +4,29 @@ var assert = require('assert');
 var utils = require('./utils.js');
 var Key = require('./key.js');
 
-function Contact(options) {
-    if (!(this instanceof Contact)) return new Contact(options);
+function Contact({ address, port, id }) {
+    if (!(this instanceof Contact)) return new Contact(arguments[0]);
 
-    assert(typeof options === 'object', "Invalid options " + options);
-    assert(typeof options.address === 'string', "Invalid address " + options.address);
-    assert(typeof options.port === 'number', "Invalid port " + options.port);
-    assert(utils.validPort(options.port), "Invalid port "+options.port);
+    assert(typeof address === 'string', "Invalid address " + address);
+    assert(typeof port === 'number', "Invalid port " + port);
+    assert(utils.validPort(port), "Invalid port "+ port);
 
-    this.address = options.address;
-    this.port = options.port;
-    this.nodeID = new Key(options.nodeID || utils.createID(this.fullAddress()));
+    this.address = address;
+    this.port = port;
+    this.nodeID = new Key(id || utils.createID(this.fullAddress()));
+    return this;
 }
 
+Contact.compare = function(c1, c2) {
+    return c1.nodeID.compare(c2.nodeID);
+};
+
+Contact.distance = function(c1, c2) {
+    return c1.nodeID.distance(c2.nodeID);
+};
+
 Contact.prototype.equals = function(c) {
-    return (c instanceof Contact) && this.nodeID.equals(c.nodeID);
+    return Contact.equals(this, c);
 };
 
 Contact.prototype.fullAddress = function() {
@@ -28,5 +36,10 @@ Contact.prototype.fullAddress = function() {
 Contact.prototype.toString = function() {
     return this.fullAddress()+"["+this.nodeID+"]";
 };
+
+Contact.equals = function(c1, c2) {
+    return (c1 instanceof Contact) && (c2 instanceof Contact) && c1.nodeID.equals(c2.nodeID);
+};
+
 
 module.exports = Contact;

@@ -21,7 +21,7 @@ KBucket.prototype.add = function(contact, ping) {
 
     var moveToTail = (i, c) => {
         let tmp = this._contacts.splice(i, 1);
-        if (!c) c = tmp;
+        if (!c) c = tmp[0];
         this._contacts.push(c);
     };
 
@@ -55,9 +55,7 @@ KBucket.prototype.remove = function(contact) {
 };
 
 KBucket.prototype.indexOf = function (contact) {
-    return _.findIndex(this._contacts, (o) => {
-        return o.nodeID.key === contact.nodeID.key;
-    });
+    return _.findIndex(this._contacts, (c) => { return c.equals(contact); });
 };
 
 KBucket.prototype.has = function(contact) {

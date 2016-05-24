@@ -9,48 +9,61 @@ const Contact = require('./contact.js');
 const Router = require('./router.js');
 const Message = require('./message.js');
 const UDP = require('./transport/udp.js');
+const constants = require('./constants.js');
 
-class Node extends EventEmitter{
-    constructor(contact, options) {
+class Node extends EventEmitter {
+    constructor(contact, { transport } = {}) {
         super();
-        assert(contact instanceof Contact, 'Invalid contact provided');
 
-        options = options || {
-            transport: new UDP(contact)
-        };
+        if (!(contact instanceof Contact)) contact = new Contact(contact);
+        transport = transport || new UDP(contact);
         this.contact = contact;
-        this._rpc = options.transport;
+        this._rpc = transport;
         this._router = new Router(contact, {transport: this._rpc});
-        Object.defineProperty(this, 'id', {get: function(){return this.contact.nodeID;}});
     }
+    get id() {return this.contact.nodeID;}
+
     connect(seed) {
         if (seed instanceof Node) seed = seed.contact;
-        return new Promise((resolve, reject) => {
-            this._rpc
-                .open()
-                .then(() => {
-                    this._rpc.removeAllListeners('incoming');
-                    this._rpc.on('incoming', this.incoming.bind(this));
-                    if (seed) {
-                        global.log.info("Attempting to bootstrap using seed: "+seed);
-                        global.log.info("Pinging seed...");
-                        return this._router.ping(seed);
-                    }
-                    else throw new ReferenceError('NO_SEED');
-                }).then((RTT) => {
-                    global.log.success("Seed pinged successfully, connecting to network...");
-                    // Contact should be added automaticly after PONG received
-                    // this._router.addContact(seed);
-                    return this._router.findNode(this.id);
-                    // return resolve(RTT);
-                }).catch(ReferenceError, () => {
-                    global.log.warning("No seed provided");
-                    return resolve();
-                }).catch((err) => {
-                    this.disconnect();
-                    return reject(err);
-                });
-        });
+        else if (typeof seed == 'object') seed = new Contact(seed);
+
+        const connectToSeed = () => {
+            this._rpc.removeAllListeners('incoming');
+            this._rpc.on('incoming', this.incoming.bind(this));
+            if (seed) {
+                this._router.addContact(seed);
+                return;
+                // return this._router.ping(seed);
+            }
+            else throw new ReferenceError("No seed provided");
+        };
+
+        const findSelf = (RTT) => {
+            return this._router.findNode(this.id);
+        };
+
+        return this._rpc.open()
+            .then(connectToSeed)
+            .then(findSelf)
+            .then((nodes) => {
+                if (nodes.length === 0) {
+                    throw new Router.EmptyNetworkError("Couldn't find any nodes using given seed");
+                }
+                return nodes;
+            })
+            .catch(ReferenceError, (err) => {
+                global.log.warning(err.toString());
+                return;
+            })
+            .catch(Router.EmptyNetworkError, (err) => {
+                global.log.warning(err.toString());
+                return;
+            })
+            .catch((err) => {
+                global.log.error("Error bootstraping\n", err);
+                this.disconnect();
+                throw err;
+            });
     }
     disconnect() {
         this._rpc.close();
@@ -65,9 +78,15 @@ class Node extends EventEmitter{
             let contact = new Contact(message.params.contact);
             switch (message.method) {
             case 'PING':
-                global.log.info("Received PING from: " + contact);
+                // global.log.info("Received PING from: " + contact);
                 let pong = Message.fromRequest(message, {contact: this.contact});
                 this._rpc.send(pong, contact);
+                break;
+
+            case 'FIND_NODE':
+                let nearest = this._router._getNearestContacts(message.params.key, constants.K, contact);
+                let res = Message.fromRequest(message, {nodes: nearest, contact: this.contact});
+                this._rpc.sendAsync(res, contact);
                 break;
             }
         }
