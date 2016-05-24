@@ -34,8 +34,10 @@ KBucket.prototype.add = function(contact, ping) {
     else if (!exists && this.length === constants.K &&
              typeof(ping) === 'function' && ping){
         ping(head).then((RTT) => {
+            global.log.success("Contact at head is alive, moving to tail...");
             moveToTail(0);
-        }).catch((e) => {
+        }).catch(Promise.TimeoutError, (err) => {
+            global.log.error("Contact at head didn't respond, removing...");
             moveToTail(0, contact);
         });
     }
