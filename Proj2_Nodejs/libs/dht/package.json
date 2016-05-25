@@ -1,0 +1,21 @@
+{
+  "name": "my-kademlia",
+  "version": "0.7.2",
+  "description": "Implementation of Kademlia DHT protocol for use in Distributed Backup Service application",
+  "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/.bin/mocha test"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bluebird": "^3.4.0",
+    "chalk": "^1.1.3",
+    "kad": "^1.5.8",
+    "lodash": "^4.12.0"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^2.4.5"
+  }
+}
