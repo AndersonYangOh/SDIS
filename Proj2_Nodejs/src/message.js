@@ -13,7 +13,7 @@ var Message = (function (){
 
     Message.Requests = Object.freeze({
         PING: {params: ['contact']},
-        STORE: {params: ['contact']},
+        STORE: {params: ['contact', 'key', 'value']},
         FIND_NODE: {params: ['contact', 'key']},
         FIND_VALUE: {params: ['contact', 'key']}
     });

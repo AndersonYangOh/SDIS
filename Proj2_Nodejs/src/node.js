@@ -10,6 +10,7 @@ const Contact = require('./contact.js');
 const Router = require('./router.js');
 const Message = require('./message.js');
 const UDP = require('./transport/udp.js');
+const utils = require('./utils.js');
 const constants = require('./constants.js');
 
 class Node extends EventEmitter {
@@ -22,6 +23,7 @@ class Node extends EventEmitter {
         this.contact = contact;
         this._rpc = transport;
         this._router = new Router(contact, {transport: this._rpc});
+        this._storage = new Map();
     }
     get id() {return this.contact.nodeID;}
 
@@ -35,7 +37,7 @@ class Node extends EventEmitter {
         };
         const connectToSeed = () => {
             this._rpc.removeAllListeners('incoming');
-            this._rpc.on('incoming', this.incoming.bind(this));
+            this._rpc.on('incoming', this._incoming.bind(this));
             if (seed && !seed.equals(this.contact)) {
                 this._router.addContact(seed);
                 return;
@@ -94,32 +96,100 @@ class Node extends EventEmitter {
         this._rpc.close();
         this._router.clean();
     }
-    incoming(message, remote) {
-        var remote_contact = new Contact(remote);
-        this._router.addContact(remote_contact);
 
-        if (message.isRequest()) {
-            let contact = new Contact(message.params.contact);
+    get(key) {
+        const hashed = utils.createID(key);
+        if (this._storage.has(hashed)) return Promise.resolve(this._storage.get(hashed));
 
-            switch (message.method) {
-            case 'PING':
-                // global.log.info("Received PING from: " + contact);
-                let pong = Message.fromRequest(message, {contact: this.contact});
-                this._rpc.send(pong, contact);
-                break;
-
-            case 'FIND_NODE':
-                let nearest = this._router.getNearestContacts(message.params.key, constants.K, contact.nodeID);
-                let res = Message.fromRequest(message, {nodes: nearest, contact: this.contact});
-                this._rpc.sendAsync(res, contact);
-                break;
-            }
-        }
+        return this._router.findValue(hashed);
     }
-    ping(contact) {
-        if (contact instanceof Node) contact = contact.contact;
+
+    put(key, data) {
+        const hashed = utils.createID(key);
+        const value = { key: key, data: data };
+
+        const handleContacts = (res) => {
+            if (_.isEmpty(res)) throw new Router.EmptyNetworkError();
+            return res;
+        };
+        const getLocalContacts = (err) => {
+            return this._router.getNearestContacts(hashed, constants.K, this.contact.nodeID);
+        };
+        const sendStoreToContacts = (contacts) => {
+            return Promise.map(contacts, c => {
+                const store_msg = Message.createMessage('STORE', {key: hashed, value: value, contact: this.contact});
+                return this._rpc.sendAsync(store_msg, c)
+                    .then(res => res.contact);
+            });
+        };
+        const handleResponses = (responses) => {
+            console.log(responses.length+" contacts have stored the value.");
+            if (responses.length < 3 && !this._storage.has(hashed)) {
+                this._storage.set(hashed, value);
+                responses.push(this.contact);
+            }
+            return {value: value, responses: responses, replDeg: responses.length};
+        };
+
+        return this._router.findNode(hashed)
+              .then(handleContacts)
+              .catch(Router.EmptyNetworkError, getLocalContacts)
+              .then(sendStoreToContacts)
+              .then(handleResponses);
+    }
+
+    ping(arg) {
+        let contact;
+        if (arg instanceof Node) contact = arg.contact;
+        else if (arg instanceof Contact) contact = arg;
+        else contact = new Contact(arg);
+
         global.log.info("Pinging "+contact);
         return this._router.ping(contact);
+    }
+
+    _incoming(message, remote) {
+        const remote_contact = new Contact(remote);
+
+        let contact = message.contact;
+        this._router.addContact(contact);
+
+        if (message.isRequest()) {
+
+            const sendNearest = (key) => {
+                const nearest = this._router.getNearestContacts(key, constants.K, contact.nodeID);
+                const res = Message.fromRequest(message, {nodes: nearest, contact: this.contact});
+                this._rpc.sendAsync(res, contact);
+            };
+
+            if (message.method === 'PING') {
+                // global.log.info("Received PING from: " + contact);
+                const pong = Message.fromRequest(message, {contact: this.contact});
+                this._rpc.sendAsync(pong, contact);
+            }
+
+            else if (message.method === 'FIND_NODE') {
+                sendNearest(message.params.key);
+            }
+
+            else if (message.method === 'FIND_VALUE') {
+                if (this._storage.has(message.params.key)) {
+                    const value = this._storage.get(message.params.key);
+                    const res = Message.fromRequest(message, {value: value, contact: this.contact});
+                    this._rpc.sendAsync(res, contact);
+                }
+                else sendNearest(message.params.key);
+            }
+
+            else if (message.method === 'STORE') {
+                const { key, value } = message.params;
+                if (!this._storage.has(key)) {
+                    this._storage.set(key, value);
+                }
+                const pong = Message.fromRequest(message, {contact: this.contact});
+                this._rpc.sendAsync(pong, contact);
+            }
+        }
     }
 }
 

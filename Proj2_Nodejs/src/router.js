@@ -32,7 +32,11 @@ class Router extends EventEmitter {
     }
 
     findValue(key) {
-        return this.lookup('VALUE', key);
+        return this.lookup('VALUE', key)
+            .then(res => {
+                if (_.isArray(res)) throw new ValueNotFoundError(res);
+                else return res;
+            });
     }
 
     lookup(type, key) {
@@ -40,11 +44,18 @@ class Router extends EventEmitter {
             type: type,
             key: key,
             limit: constants.ALPHA,
+
+            // FIND_NODE
             shortList: [],
             closestNode: undefined,
             closestNodeDistance: undefined,
             prevClosestNode: undefined,
-            contacted: new Map()
+            contacted: new Map(),
+
+            // FIND_VALUE
+            found: false,
+            value: undefined,
+            withoutValue: []
         };
         state.shortList = this.getNearestContacts(key, state.limit, this._contact.nodeID);
         state.closestNode = _.head(state.shortList);
@@ -208,10 +219,23 @@ class Router extends EventEmitter {
                 let tmp = _.concat(state.shortList, new_nodes);
                 state.shortList = _.uniqWith(tmp, (a,b) => a.equals(b));
             }
+            else if (state.type === 'VALUE') {
+                if (!res.result.value) {
+                    state.withoutValue.push(contact);
+                }
+                else {
+                    state.found = true;
+                    state.value = res.result.value;
+                }
+            }
 
             return {state};
         };
         const handleResults = ({ state }) => {
+            if (state.found) {
+                return state.value;
+            }
+
             let noneCloser = state.closestNode.equals(state.prevClosestNode);
             // let full = state.shortList.length >= constants.K;
             let full = state.contacted.size >= constants.K;
@@ -255,6 +279,8 @@ class Router extends EventEmitter {
 }
 
 class EmptyNetworkError extends EError {}
+class ValueNotFoundError extends EError {}
 
 module.exports = Router;
 module.exports.EmptyNetworkError = EmptyNetworkError;
+module.exports.ValueNotFoundError = ValueNotFoundError;

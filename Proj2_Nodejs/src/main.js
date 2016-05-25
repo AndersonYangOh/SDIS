@@ -26,8 +26,7 @@ const createNetwork = (nodes, master_idx = false) => {
                 return node;
             });
         });
-    }
-    else {
+    } else {
         let master = nodes[master_idx];
         return Promise.map(nodes, (node, i) => {
             return nodes[i].connect(master)
@@ -39,37 +38,37 @@ const createNetwork = (nodes, master_idx = false) => {
     }
 };
 
-createNodes(30).then((nodes) => {
-    return createNetwork(nodes);
-}).then((nodes) => {
+const printNetworkInfo = (nodes) => {
     global.log.success("Network of "+nodes.length+" nodes complete");
     _.each(nodes, (n, i) => {
-        for (let [ prefix, buck ] of n._router.buckets.entries()) {
-            // console.log("+ Bucket " + prefix);
-            // _.each(buck.contacts(),
-            //        c => console.log("  |---- "+c+" | "+Key.prefix(n.contact.nodeID, c.nodeID)+" | "+Key.distance(n.contact.nodeID, c.nodeID).readUInt8()));
-        }
+        // for (let [ prefix, buck ] of n._router.buckets.entries()) {
+        // console.log("+ Bucket " + prefix);
+        // _.each(buck.contacts(),
+        //        c => console.log("  |---- "+c+" | "+Key.prefix(n.contact.nodeID, c.nodeID)+" | "+Key.distance(n.contact.nodeID, c.nodeID).readUInt8()));
+        // }
         global.log.info("Node "+(i+1)+": "+n._router.length+" contacts out of "+n._router.buckets.size+" buckets");});
-});
 
-// nodes[0].connect(nodes[1]);
+    return nodes;
+};
 
-// nodes[0].connect()
-//     .then(() => {
-//         return nodes[1].connect(nodes[0]);
-//     })
-//     .then (() => {
-//         console.log(nodes[0]._router.length);
-//         console.log(nodes[1]._router.length);
-//         return nodes[0].ping(nodes[1]);
-//     }).then( (RTT) => {
-//         global.log.success(RTT+"ms");
-//     });
-
-// let network = createNetwork(nodes, 0);
-// network.then(()=>{
-//     global.log.warning("Network of "+nodes.length+" nodes is ready");
-//     _.each(nodes, (n, i) => {
-//         global.log.info("Node "+(i+1)+": "+n._router.length+" contacts");
-//     });
-// });
+let n;
+createNodes(10)
+    .then(createNetwork)
+    .then(printNetworkInfo)
+    .then(nodes =>
+          {
+              n = nodes;
+              return n[0].put("KEY1", "CONTENT1");
+          })
+    .then(({ value, replDeg }) =>
+          {
+              global.log.success("Successfully stored "+replDeg+" copies of: ", value);
+          })
+    .then( () =>
+           {
+               return n[5].get("KEY1");
+           })
+    .then (value =>
+           {
+               global.log.success("Successfully retreived: ", value);
+           });
