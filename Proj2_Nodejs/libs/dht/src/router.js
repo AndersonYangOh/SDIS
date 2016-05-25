@@ -60,7 +60,8 @@ class Router extends EventEmitter {
         state.shortList = this.getNearestContacts(key, state.limit, this._contact.nodeID);
         state.closestNode = _.head(state.shortList);
 
-        if (!state.closestNode) throw new Error('Not connected to any peers');
+        // if (!state.closestNode) throw new Error('Not connected to any peers');
+        if (!state.closestNode) return Promise.reject(new Error('Not connected to any peers'));
 
         state.closestNodeDistance = Key.distance(key, state.closestNode.nodeID);
 

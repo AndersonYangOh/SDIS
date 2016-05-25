@@ -36,7 +36,11 @@ class UDPTransport extends RPC {
         });
     }
     _close() {
-        this._socket.close();
+        if (this._connected)
+            this._socket.close();
+
+        this._connecting = false;
+        this._connected = false;
     }
     _send(message, contact) {
         this._socket.send(message, 0, message.length, contact.port, contact.address);

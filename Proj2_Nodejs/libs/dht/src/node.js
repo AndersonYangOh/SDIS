@@ -9,7 +9,8 @@ const _ = require('lodash');
 const Contact = require('./contact.js');
 const Router = require('./router.js');
 const Message = require('./message.js');
-const UDP = require('./transport/udp.js');
+const TCP = require('./transport').TPC;
+const UDP = require('./transport').UDP;
 const utils = require('./utils.js');
 const constants = require('./constants.js');
 
@@ -18,7 +19,7 @@ class Node extends EventEmitter {
         super();
 
         if (!(contact instanceof Contact)) contact = new Contact(contact);
-        transport = transport || new UDP(contact);
+        transport = transport || new TCP(contact);
 
         this.contact = contact;
         this._rpc = transport;
@@ -110,7 +111,7 @@ class Node extends EventEmitter {
 
         const handleContacts = (res) => {
             if (_.isEmpty(res)) throw new Router.EmptyNetworkError();
-            return res;
+            return _.slice(res, 0, constants.K);
         };
         const getLocalContacts = (err) => {
             return this._router.getNearestContacts(hashed, constants.K, this.contact.nodeID);

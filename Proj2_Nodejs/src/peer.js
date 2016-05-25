@@ -1,10 +1,14 @@
 'use strict';
 
 const Promise = require('bluebird');
-const DHT = require('my-kademlia');
+const DHT = require('../libs/dht');
 const _ = require('lodash');
+const minimist = require('minimist');
+const readline = require('readline');
 
 const File = require('./file.js');
+
+global.log = DHT.Logger;
 
 class Peer {
     constructor({ contact } = {}) {
@@ -12,10 +16,14 @@ class Peer {
     }
 
     connect(arg1) {
-        let contact;
+        let contact = arg1;
         if (arg1 instanceof Peer) contact = arg1._node.contact;
 
-        return this._node.connect(contact).return(this);
+        return this._node.connect(contact).then(()=>console.log("Connected to ",this._node._router.length)).return(this);
+    }
+
+    disconnect() {
+        this._node.disconnect();
     }
 
     get(filename) {
@@ -27,7 +35,8 @@ class Peer {
             .then( buf =>
                    {
                        return File.saveFile(buf, './somos_aguca.png');
-                   });
+                   })
+            .catch((err) => {DHT.Logger.error("Failed to get "+filename+". Reason: "+err.message);});
     }
 
     put(filepath) {
@@ -45,38 +54,95 @@ class Peer {
 }
 
 const createPeers = (n) => {
-    let peers = _.times(n, (i) => { return new Peer({contact: {port:65535-i}}); });
+    let peers = _.times(n, (i) => { return new Peer({contact: {port:10000+i}}); });
     return Promise.map(peers, peer => peer.connect());
 };
 
 const createNetwork = (peers) => {
-        return Promise.map(peers, (node, i) => {
-            return peers[i].connect(peers[i+1]).then((peer)=>{
-                DHT.Logger.success("Peer "+(i+1)+" connected");
-                return peer;
-            });
+    return Promise.map(peers, (node, i) => {
+        return peers[i].connect(peers[i+1]).then((peer)=>{
+            DHT.Logger.success("Peer "+(i+1)+" connected");
+            return peer;
         });
+    });
 };
 
-// let p1 = new Peer({contact:{port:6000}});
-createPeers(10)
-    .then(createNetwork)
-    .then(peers => {
-        const p1 = peers[0];
+const argv = minimist(process.argv);
+console.log(argv);
 
-        return p1.put('./Boost_full.jpg')
-            .delay(1000)
-            .then( () => {
-                return p1.get('./Boost_full.jpg');
-            })
-            .then(()=>DHT.Logger.success("Successfully retreived file"));
-    });
+let peer;
+if (argv.j) {
+    const addr = argv.j.split(':')[0];
+    const port = Number(argv.j.split(':')[1]);
+    peer = new Peer({contact:{port:6000}});
+    peer.connect({address: addr, port: port});
+}
+else if (argv.n) {
+    const num = Number(argv.n);
+    createPeers(num)
+        .then(createNetwork)
+        .then(peers => {
+            _.each(peers, (p, i) => {
+                DHT.Logger.info("Peer "+(i+1)+": "+p._node._router.length+" contacts");
+            });
+        });
+}
+else {
+    peer = new Peer({contact:{port:6000}});
+    peer.connect();
+}
 
 
-// File.loadFile('./Boost_full.jpg')
-//     .then(File.serialize)
-//     .then(File.deserialize)
-//     .then(des =>
-//           {
-//               File.saveFile(des, './Boost_full.bk.jpg');
-//           });
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
+rl.setPrompt('PeerCLI > ');
+rl.prompt();
+
+rl.on('line', (line) => {
+    let args = line.trim().split(" ");
+    let op = args[0].toLowerCase();
+    // console.log(args, op);
+    switch(op) {
+    case 'connect':
+        {
+            let contact;
+            if (args[1]) {
+                const addr = args[1].split(":")[0];
+                const port = Number(args[1].split(":")[1]);
+                contact = {address:addr,port:port};
+            }
+
+            console.log(contact);
+            peer.connect(contact)
+                .then(()=>rl.prompt());
+        }
+        break;
+    case 'disconnect':
+        {
+            peer.disconnect();
+            rl.prompt();
+        }
+        break;
+    case 'get':
+        {
+            const filename = args[1];
+            peer.get(filename).then(()=>rl.prompt());
+        }
+        break;
+    case 'put':
+        {
+            const filepath = args[1];
+            peer.put(filepath).then(()=>rl.prompt());
+        }
+        break;
+    case '':
+        rl.prompt();
+        break;
+    default:
+        console.log("Invalid operation");
+        rl.prompt();
+        break;
+    }
+});
