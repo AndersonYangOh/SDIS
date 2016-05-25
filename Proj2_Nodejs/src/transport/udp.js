@@ -9,25 +9,26 @@ class UDPTransport extends RPC {
     constructor(contact) {
         super(contact);
 
-        this._connected = false;
         this._socket = undefined;
     }
     _open() {
         return new Promise((resolve, reject) => {
             let port = this._contact.port;
-            if (this._connected) return resolve(port);
+            if (this._connected || this._connecting) return resolve(port);
 
+            this._connecting = true;
             this._socket = dgram.createSocket('udp4');
             this._socket.on('message', (buffer, remote) => {
                 this.receive(buffer, remote);
             });
             this._socket.on('listening', () => {
-                console.log("UDP Socket open on port:",port);
+                // console.log("UDP Socket open on port:",port);
+                this._connecting = false;
                 this._connected = true;
                 resolve(port);
             });
             this._socket.on('error', (err) => {
-                console.error("UDP Socket couldn't open on port:",port);
+                // console.error("UDP Socket couldn't open on port:",port);
                 reject(err);
             });
             this._socket.bind(port);

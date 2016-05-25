@@ -44,7 +44,7 @@ describe('KBucket', function() {
         expect(buck.head().equals(c1)).to.be.true;
 
         let sorted = buck.nearest(c2.nodeID);
-        expect(sorted[0].contact.equals(c2)).to.be.true;
+        expect(sorted[0].equals(c2)).to.be.true;
     });
 
 });

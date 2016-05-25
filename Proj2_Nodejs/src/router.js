@@ -22,9 +22,10 @@ class Router extends EventEmitter {
 
         this._rpc = transport;
         this._contact = contact;
-        this._kbuckets = {};
+        this._kbuckets = new Map();
     }
     get length() { return this._size(); }
+    get buckets() { return this._kbuckets; }
 
     findNode(key) {
         return this.lookup('NODE', key);
@@ -43,44 +44,139 @@ class Router extends EventEmitter {
             closestNode: undefined,
             closestNodeDistance: undefined,
             prevClosestNode: undefined,
-            contacted: {}
+            contacted: new Map()
         };
-        state.shortList = this._getNearestContacts(key, state.limit, this._contact.nodeID);
+        state.shortList = this.getNearestContacts(key, state.limit, this._contact.nodeID);
         state.closestNode = _.head(state.shortList);
 
         if (!state.closestNode) throw new Error('Not connected to any peers');
 
-        state.closestNodeDistance = key.distance(state.closestNode.nodeID);
+        state.closestNodeDistance = Key.distance(key, state.closestNode.nodeID);
 
         return this._iterativeFind(state, state.shortList);
     }
 
     addContact(contact) {
-        var bucketIdx = 0;
+        assert(contact instanceof Contact, 'Invalid contact provided');
 
-        if (!this._kbuckets[bucketIdx]) {
-            this._kbuckets[bucketIdx] = new KBucket();
+        if (contact.equals(this._contact)) return;
+
+        let bucketIdx = Key.prefix(this._contact.nodeID, contact.nodeID);
+        assert(bucketIdx < constants.B, 'Bucket index cannot exceed B('+constants.B+')');
+
+        // console.log(contact+"\n"+this._contact+"\n"+bucketIdx);
+
+        if (!this._kbuckets.has(bucketIdx)) {
+            this._kbuckets.set(bucketIdx, new KBucket());
         }
 
-        var b = this._kbuckets[bucketIdx];
+        var b = this._kbuckets.get(bucketIdx);
 
         b.add(contact, this.ping.bind(this));
     }
 
     removeContact(contact) {
+        assert(contact instanceof Contact, 'Invalid contact provided');
+
+        var bucketIdx = Key.prefix(this._contact.nodeID, contact.nodeID);
+        assert(bucketIdx < constants.B, 'Bucket index cannot exceed B('+constants.B+')');
+
+        var b = this._kbuckets.get(bucketIdx);
+        if (!b) return false;
+
+        b.remove(contact);
+        return true;
     }
 
     ping(contact) {
         assert(contact instanceof Contact, 'Invalid contact provided');
         let ping = Message.createMessage('PING', {contact: this._contact});
-        let RTT = Date.now();
+        let RTT = process.hrtime();
         return this._rpc.sendAsync(ping, contact).then(()=>{
-            return Date.now()-RTT;
+            return process.hrtime(RTT);
         });
     }
 
     clean() {
-        this._kbuckets = [];
+        this._kbuckets = new Map();
+    }
+
+    getNearestContacts(key, limit, nodeID) {
+        assert(nodeID instanceof Key);
+        let nearest = [];
+        let prefix = Key.prefix(this._contact.nodeID, key);
+
+        let addNearest = (bucket) => {
+            if (!bucket) return;
+            let toAdd = _.chain(bucket.nearest(key))
+                .reject(c => c.nodeID.equals(nodeID))
+                .slice(0, limit-nearest.length)
+                .value();
+            nearest = _.concat(nearest, toAdd);
+        };
+
+        for (let i = prefix; nearest.length < limit && i < constants.B; ++i) {
+            addNearest(this._kbuckets.get(i));
+        }
+
+        for (let i = prefix-1; nearest.length < limit && i >= 0; --i) {
+            addNearest(this._kbuckets.get(i));
+        }
+
+        // global.log.info("Me: " + this._contact);
+        // console.log("Requester: " + nodeID);
+        // console.log("Returning "+nearest.length+" from "+this.length+". Needed "+limit);
+        // console.log(Array.from(this.buckets.keys()));
+        // console.log(prefix);
+        // console.log("---------------------");
+        // _.each(nearest, (c) => console.log(c+""));
+        // console.log("---------------------");
+        // if (nearest.length < this.length && this.length < limit) {
+        //     let buck = Array.from(this.buckets.values());
+        //     buck = _.map(buck, b => b._contacts );
+        //     buck = _.flatten(buck);
+        //     buck = _.map(buck, c => { return {contact: c, distance: Key.distance(key, c.nodeID)}; });
+        //     buck = buck.sort((c1,c2) => Key.compare(c1.distance, c2.distance));
+        //     _.each(buck, c => console.log(c.contact+""+c.distance.readUInt8()));
+        // }
+
+        return nearest;
+    }
+
+    refreshBucket(prefix) {
+        assert(prefix >= 0 && prefix < constants.B, 'Invalid prefix');
+
+        const powerOfTwo = (idx) => {
+            const nBytes = constants.B / 8;
+            const byte = parseInt(idx / 8);
+            let buf = new Buffer(nBytes).fill(0);
+
+            buf[nBytes - byte - 1] = 1 << (idx % 8);
+            return buf;
+        };
+
+        const getRandom = (idx) => {
+            const nBytes = constants.B / 8;
+
+            const byte = parseInt(idx / 8);
+            let base = powerOfTwo(idx);
+
+            for (let i = nBytes - 1; i > (nBytes - byte - 1); --i)
+                base[i] = parseInt(Math.random() * 256);
+
+            for (let i = idx - 1; i >= byte*8; --i) {
+                const one = Math.random() >= 0.5;
+                const shift = i - byte*8;
+
+                base[nBytes - byte - 1] |= one ? (1 << shift) : 0;
+            }
+
+            return base;
+        };
+
+        const randKey = new Key(getRandom(prefix).toString('hex'));
+
+        return this.findNode(randKey);
     }
 
     _iterativeFind(state, contacts) {
@@ -92,10 +188,14 @@ class Router extends EventEmitter {
                 return {res, state, contact};
             });
         };
-        const analyzeResponse = ({res, state, contact }) => {
-            let dist = state.key.distance(contact.nodeID);
+        const analyzeResponse = ({ res, state, contact }) => {
+            assert(res instanceof Message, 'Invalid response');
+            assert(contact instanceof Contact, 'Invalid contact');
 
-            state.contacted[contact.nodeID.key] = contact;
+            let dist = Key.distance(state.key, contact.nodeID);
+
+            this.addContact(contact);
+            state.contacted.set(contact.nodeID.key, contact);
 
             if (Key.compare(dist, state.closestNodeDistance) < 0) {
                 state.prevClosestNode = state.closestNode;
@@ -105,25 +205,26 @@ class Router extends EventEmitter {
 
             if (state.type === 'NODE') {
                 let new_nodes = _.map(res.result.nodes, (c) => { return new Contact(c); });
-                let tmp = state.shortList.concat(new_nodes);
-                state.shortList = _.uniqWith(tmp, Contact.equals);
+                let tmp = _.concat(state.shortList, new_nodes);
+                state.shortList = _.uniqWith(tmp, (a,b) => a.equals(b));
             }
 
             return {state};
         };
         const handleResults = ({ state }) => {
             let noneCloser = state.closestNode.equals(state.prevClosestNode);
-            let full = state.shortList.length >= constants.K;
+            // let full = state.shortList.length >= constants.K;
+            let full = state.contacted.size >= constants.K;
 
             let remaining = _.reject(state.shortList, (c) => {
-                return state.contacted[c.nodeID.key];
+                return state.contacted.has(c.nodeID.key);
             });
 
-            if (noneCloser || full) {
-                return state.shortList;
-            }
+            // if (noneCloser) global.log.warning("No node closer");
+            // if (full) global.log.warning("List is full");
+            // if (_.isEmpty(remaining)) global.log.warning("No nodes remaining");
 
-            if (remaining.length === 0) {
+            if (noneCloser || full || _.isEmpty(remaining)) {
                 return state.shortList;
             }
 
@@ -146,19 +247,9 @@ class Router extends EventEmitter {
         });
     }
 
-    _getNearestContacts(key, limit, nodeID) {
-        var nearest = [];
-        limit = Math.min(limit, this.length);
-        return this._kbuckets[0].getN(limit);
-        // for (let i = 0; i < this._kbuckets.length && nearest.length < limit; ++i) {
-        //     nearest = nearest.concat(this._kbucket[i].getN(limit-nearest.length));
-        // }
-        // return nearest;
-    }
-
     _size() {
         var total = 0;
-        _.each(this._kbuckets, (val) => total+=val.length);
+        this._kbuckets.forEach(bucket => total+=bucket.length);
         return total;
     }
 }

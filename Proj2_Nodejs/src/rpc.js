@@ -15,6 +15,8 @@ class RPC extends EventEmitter {
 
         this._contact = contact;
         this._pending = {};
+        this._connected = false;
+        this._connecting = false;
     }
     open() {
         return this._open();
@@ -44,7 +46,7 @@ class RPC extends EventEmitter {
                 return resolve(msg);
             });
         })
-            .timeout(1000).catch(Promise.TimeoutError, (e) => {
+            .timeout(5000).catch(Promise.TimeoutError, (e) => {
                 global.log.error("Didn't get response in time for message:\n", message);
                 delete this._pending[message.id];
                 throw e;

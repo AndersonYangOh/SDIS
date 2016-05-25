@@ -11,19 +11,38 @@ function Key(key) {
     Object.defineProperty(this, 'length', {get: function(){return this.key.length;}});
 }
 
+Key.prefix = function(key1, key2) {
+    let dist = Key.distance(key1, key2);
+    let prefix = constants.B;
+
+    for (let [ i, byte ] of dist.entries()) {
+        if (byte === 0) {
+            prefix -= 8;
+            continue;
+        }
+
+        for (let i = 0; i < 8; ++i) {
+            if (byte & (0x80 >> i)) return --prefix;
+            --prefix;
+        }
+    }
+
+    return prefix;
+};
+
 Key.toBuffer = function(key) {
     if (key && key instanceof Key) key = key.key;
     assert(key && typeof key === 'string', 'Invalid key provided');
 
-    var buf = new Buffer(constants.B/8);
+    let buf = new Buffer(constants.B/8);
     buf.write(key, 0, 'hex');
     return buf;
 };
 
 Key.distance = function(key1, key2) {
-    var dist = new Buffer(constants.B/8);
-    var b1 = Buffer.isBuffer(key1) ? key1 : Key.toBuffer(key1);
-    var b2 = Buffer.isBuffer(key2) ? key2 : Key.toBuffer(key2);
+    let dist = new Buffer(constants.B/8);
+    let b1 = Buffer.isBuffer(key1) ? key1 : Key.toBuffer(key1);
+    let b2 = Buffer.isBuffer(key2) ? key2 : Key.toBuffer(key2);
 
     for (let i = 0; i < constants.B/8; ++i)
         dist[i] = b1[i] ^ b2[i];
@@ -32,8 +51,8 @@ Key.distance = function(key1, key2) {
 };
 
 Key.compare = function(key1, key2) {
-    var b1 = Buffer.isBuffer(key1) ? key1 : Key.toBuffer(key1);
-    var b2 = Buffer.isBuffer(key2) ? key2 : Key.toBuffer(key2);
+    let b1 = Buffer.isBuffer(key1) ? key1 : Key.toBuffer(key1);
+    let b2 = Buffer.isBuffer(key2) ? key2 : Key.toBuffer(key2);
 
     for (let i = 0; i < b1.length; ++i) {
         if (b1[i] !== b2[i]) {

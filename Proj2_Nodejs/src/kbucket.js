@@ -35,7 +35,7 @@ KBucket.prototype.add = function(contact, ping) {
     else if (!exists && this.length === constants.K &&
              typeof(ping) === 'function' && ping){
         ping(head).then((RTT) => {
-            global.log.success("Contact at head is alive, moving to tail...");
+            // global.log.success("Contact at head is alive, moving to tail...");
             moveToTail(0);
         }).catch(Promise.TimeoutError, (err) => {
             global.log.error("Contact at head didn't respond, removing...");
@@ -76,8 +76,9 @@ KBucket.prototype.has = function(contact) {
 KBucket.prototype.nearest = function(key) {
     return _.chain(this._contacts)
         .clone()
-        .map(c => { return {contact: c, distance: key.distance(c.nodeID)}; })
+        .map(c => { return {contact: c, distance: Key.distance(key, c.nodeID)}; })
         .sort((c1, c2) => Key.compare(c1.distance, c2.distance))
+        .map(sorted => sorted.contact)
         .value();
 };
 
