@@ -5,6 +5,9 @@ const DHT = require('../libs/dht');
 const _ = require('lodash');
 const minimist = require('minimist');
 const readline = require('readline');
+const hat = require('hat');
+const crypto = require('crypto');
+const path = require('path');
 
 const File = require('./file.js');
 
@@ -27,28 +30,64 @@ class Peer {
     }
 
     get(filename) {
-        return this._node.get(filename)
-            .then( ({ key, data }) =>
-                   {
-                       return File.deserialize(data);
-                   })
-            .then( buf =>
-                   {
-                       return File.saveFile(buf, './somos_aguca.png');
-                   })
-            .catch((err) => {DHT.Logger.error("Failed to get "+filename+". Reason: "+err.message);});
+        const getMetaData = (filename) => {
+            return this._node.get(filename);
+        };
+        const handleMetaData = ({ key, data }) => {
+            const metadata = JSON.parse(data);
+            console.log(metadata);
+            return metadata;
+        };
+        const getFile = (metadata) => {
+            return this._node.get(metadata.filekey)
+                .then( ({ key, data }) => {
+                    return {metadata: metadata, received: {key:key, data:data}};
+                });
+        };
+        const checkIntegrity = ({ metadata, received }) => {
+            if (metadata.filekey !== received.key) throw new Error("Keys don't match");
+
+            const file = File.deserialize(received.data);
+            const checksum = crypto.createHash('md5').update(file).digest('hex');
+
+            if (checksum !== metadata.checksum) throw new Error("CHECKSUM doesn't match");
+
+            return {metadata: metadata, file: file};
+        };
+        const saveFile = ({ metadata, file }) => {
+            const saveName = metadata.name+".bk"+metadata.extension;
+            return File.saveFile(file, saveName);
+        };
+
+        return getMetaData(filename)
+            .then(handleMetaData)
+            .then(getFile)
+            .then(checkIntegrity)
+            .then(saveFile)
+            .catch((err) => {DHT.Logger.error("Failed to get "+filename+". Reason: ",err);});
     }
 
     put(filepath) {
+        const createMetaData = ({ info, data }) => {
+            const randKey = hat.rack(160)()+info.path.base+info.stat.ctime.getTime();
+            const metadata = {
+                name: info.path.name,
+                base: info.path.base,
+                extension: info.path.ext,
+                filekey: crypto.createHash('sha1').update(randKey).digest('hex'),
+                checksum: crypto.createHash('md5').update(data).digest('hex')
+            };
+            return this._node.put(metadata.base, JSON.stringify(metadata))
+                .return({key: metadata.filekey, data: data});
+        };
+        const backupFile = ({ key, data }) => {
+            const serialized = File.serialize(data);
+            return this._node.put(key, serialized);
+        };
+
         return File.loadFile(filepath)
-            .then(buf =>
-                  {
-                      return {key: filepath, data: File.serialize(buf)};
-                  })
-            .then(({ key, data }) =>
-                  {
-                      return this._node.put(key, data);
-                  });
+            .then(createMetaData)
+            .then(backupFile);
     }
 
 }

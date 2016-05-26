@@ -28,8 +28,14 @@ class File {
     }
 
     static loadFile(filepath) {
-        let p = path.normalize(path.join(__dirname, filepath));
-        return fs.readFileAsync(p);
+        const p = path.normalize(path.join(__dirname, filepath));
+        const fileInfo = {
+            path: path.parse(p),
+            stat: fs.lstatSync(p)
+        };
+        return fs.readFileAsync(p).then( data => {
+            return { info: fileInfo, data: data };
+        });
     }
 
     static saveFile(data, filepath) {
