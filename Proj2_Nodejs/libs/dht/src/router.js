@@ -260,7 +260,8 @@ class Router extends EventEmitter {
             global.log.warning("Contact didn't respond, removing...\n"+contact);
             state.shortList = _.reject(state.shortList, (c) => { return c.equals(contact); });
             this.removeContact(contact);
-            throw err;
+            return {state};
+            // throw err;
         };
 
         return Promise.map(contacts, (contact) => {

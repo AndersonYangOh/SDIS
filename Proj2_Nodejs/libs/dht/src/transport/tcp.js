@@ -22,14 +22,15 @@ class TCPTransport extends RPC {
             this._server = net.createServer((connection) => {
                 let addr = connection.address();
                 let conn_contact = new Contact(addr);
-                let buffer = Buffer.alloc(0);
+
+                let buffers = [];
 
                 // console.log(this._contact.fullAddress()+' TCP Client connected', conn_contact.fullAddress());
                 connection.on('data', (data) => {
-                    buffer = Buffer.concat([buffer, data]);
+                    buffers.push(data);
                 });
                 connection.on('end', () => {
-                    this.receive(buffer, addr);
+                    this.receive(Buffer.concat(buffers), addr);
                     // console.log(this._contact.fullAddress(),'TCP Client disconnected', conn_contact.fullAddress());
                 });
                 connection.on('error', err => console.log(err) );

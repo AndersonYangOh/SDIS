@@ -47,7 +47,7 @@ class RPC extends EventEmitter {
             });
         })
             .timeout(5000).catch(Promise.TimeoutError, (e) => {
-                global.log.error("Didn't get response in time for message:\n", message);
+                global.log.error("Didn't get response in time for message:", message.method);
                 delete this._pending[message.id];
                 throw e;
             });
