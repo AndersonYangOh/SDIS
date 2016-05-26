@@ -5,6 +5,7 @@ const EventEmitter = require('events');
 const Promise = require('bluebird');
 const chalk = require('chalk');
 const _ = require('lodash');
+const net = require('net');
 
 const Contact = require('./contact.js');
 const Router = require('./router.js');
@@ -19,7 +20,7 @@ class Node extends EventEmitter {
         super();
 
         if (!(contact instanceof Contact)) contact = new Contact(contact);
-        transport = transport || new TCP(contact);
+        transport = transport || new UDP(contact);
 
         this.contact = contact;
         this._rpc = transport;
@@ -102,7 +103,26 @@ class Node extends EventEmitter {
         const hashed = utils.createID(key);
         if (this._storage.has(hashed)) return Promise.resolve(this._storage.get(hashed));
 
-        return this._router.findValue(hashed);
+        return this._router.findValue(hashed)
+            .then(({ addr, port }) => {
+                console.log("Trying to get data through TCP");
+                console.log(addr, port);
+                return new Promise((resolve, reject) => {
+                    let buffers = [];
+                    let client = net.createConnection(port, addr);
+                    client.on('error', (err) => { return reject(err); });
+                    client.on('data', (data) => {
+                        console.log("Whoop "+data.length+" bytes");
+                        buffers.push(data);
+                    });
+                    client.on('close', () => {
+                        let buf = Buffer.concat(buffers);
+                        console.log("Assembling packets... "+buf.length+" bytes");
+                        let data = JSON.parse(buf.toString('utf8'));
+                        return resolve(data);
+                    });
+                });
+            });
     }
 
     put(key, data) {
@@ -116,11 +136,46 @@ class Node extends EventEmitter {
         const getLocalContacts = (err) => {
             return this._router.getNearestContacts(hashed, constants.K, this.contact.nodeID);
         };
-        const sendStoreToContacts = (contacts) => {
-            return Promise.map(contacts, c => {
-                const store_msg = Message.createMessage('STORE', {key: hashed, value: value, contact: this.contact});
+        const createServer = (contacts) => {
+            return new Promise((resolve, reject) => {
+                if (_.isEmpty(contacts)) return reject(Router.EmptyNetworkError());
+
+                const buf = new Buffer(JSON.stringify(value), 'utf8');
+                let server = net.createServer(connection => {
+                    connection.on('error', err => { return reject(err); });
+
+                    connection.write(buf);
+                    connection.end();
+                    connection.destroy();
+                });
+                server.on('error', err => { return reject(err); });
+                server.listen(0, '127.0.0.1', () => {
+                    const addr = server.address().address;
+                    const port = server.address().port;
+
+                    console.log("Created server to send data at "+addr+":"+port);
+                    return resolve({contacts, server});
+                });
+
+                return undefined;
+            });
+        };
+        const sendStoreToContacts = ({ contacts, server }) => {
+            const { address:addr, port } = server.address();
+            const store_msg = Message.createMessage('STORE', {key: hashed, value: {addr:addr, port:port}, contact: this.contact});
+
+            let stores = Promise.map(contacts, (c => {
+                console.log("OMFG");
                 return this._rpc.sendAsync(store_msg, c)
-                    .then(res => res.contact);
+                    .then(res => {
+                        console.log("fuck this");
+                        return res.contact;
+                    });
+            }));
+
+            return stores.then(responses => {
+                server.close();
+                return responses;
             });
         };
         const handleResponses = (responses) => {
@@ -133,10 +188,11 @@ class Node extends EventEmitter {
         };
 
         return this._router.findNode(hashed)
-              .then(handleContacts)
-              .catch(Router.EmptyNetworkError, getLocalContacts)
-              .then(sendStoreToContacts)
-              .then(handleResponses);
+            .then(handleContacts)
+            .catch(Router.EmptyNetworkError, getLocalContacts)
+            .then(createServer)
+            .then(sendStoreToContacts)
+            .then(handleResponses);
     }
 
     ping(arg) {
@@ -154,6 +210,8 @@ class Node extends EventEmitter {
 
         let contact = message.contact;
         this._router.addContact(contact);
+
+        if (message.isResponse()) console.log(message.result);
 
         if (message.isRequest()) {
 
@@ -175,20 +233,58 @@ class Node extends EventEmitter {
 
             else if (message.method === 'FIND_VALUE') {
                 if (this._storage.has(message.params.key)) {
-                    const value = this._storage.get(message.params.key);
-                    const res = Message.fromRequest(message, {value: value, contact: this.contact});
-                    this._rpc.sendAsync(res, contact);
+                    const value = new Buffer(JSON.stringify(this._storage.get(message.params.key)), 'utf8');
+                    let timeout, addr, port;
+                    let server = net.createServer(connection => {
+                        clearTimeout(timeout);
+                        console.log(value.length,"bytes");
+                        connection.on('error', err => { throw err; });
+                        connection.write(value);
+                        connection.end();
+                        connection.destroy();
+                        server.close();
+                    });
+                    server.on('error', err => { throw err; });
+                    server.on('close', () => { console.log("Closed TCP server",addr,port); });
+                    server.listen(0, '127.0.0.1', () => {
+                        timeout = setTimeout(()=>{ console.log("Timeout"); server.close(); }, 500);
+                        addr = server.address().address;
+                        port = server.address().port;
+                        console.log("Created TCP server to send data", addr, port);
+                        const res = Message.fromRequest(message, {value: {addr,port}, contact: this.contact});
+                        this._rpc.sendAsync(res, contact);
+                    });
                 }
                 else sendNearest(message.params.key);
             }
 
             else if (message.method === 'STORE') {
                 const { key, value } = message.params;
-                if (!this._storage.has(key)) {
-                    this._storage.set(key, value);
-                }
+                // if (!this._storage.has(key)) {
+                //     this._storage.set(key, value);
+                // }
+                const { addr, port } = value;
+
                 const pong = Message.fromRequest(message, {contact: this.contact});
                 this._rpc.sendAsync(pong, contact);
+
+                if (!this._storage.has(key)) {
+                    let buffers = [];
+
+                    console.log("Connecting to "+addr+":"+port+" to get data needed for store");
+                    let client = net.createConnection(port, addr);
+                    client.on('error', (err) => { throw err; });
+                    client.on('data', (data) => {
+                        console.log("Whoop "+data.length+" bytes");
+                        buffers.push(data);
+                    });
+                    client.on('end', () => {
+                        console.log("LETS GOOO");
+                        let buf = Buffer.concat(buffers);
+                        let data = JSON.parse(buf.toString('utf8'));
+                        this._storage.set(key, value);
+                    });
+                }
             }
         }
     }
