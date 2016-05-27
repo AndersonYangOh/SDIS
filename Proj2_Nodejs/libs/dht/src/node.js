@@ -29,6 +29,8 @@ class Node extends EventEmitter {
     }
     get id() {return this.contact.nodeID;}
 
+    static get EOS_TOKEN() {return '_EOS_TOKEN_';}
+
     connect(seed) {
         if (seed instanceof Node) seed = seed.contact;
         else if (typeof seed == 'object') seed = new Contact(seed);
@@ -108,16 +110,22 @@ class Node extends EventEmitter {
                 console.log("Trying to get data through TCP");
                 console.log(addr, port);
                 return new Promise((resolve, reject) => {
-                    let buffers = [];
+                    let buf = '';
+                    const EOS_TOKEN = Node.EOS_TOKEN;
+
                     let client = net.createConnection(port, addr);
+                    client.setEncoding('utf8');
+
                     client.on('error', (err) => { return reject(err); });
                     client.on('data', (data) => {
-                        buffers.push(data);
+                        if (data.slice(-EOS_TOKEN.length) === EOS_TOKEN) {
+                            buf += data.slice(0, -EOS_TOKEN.length);
+                            client.end();
+                        }
+                        else buf += data;
                     });
-                    client.on('close', () => {
-                        let buf = Buffer.concat(buffers);
-                        console.log("Assembling packets... "+buf.length+" bytes");
-                        let data = JSON.parse(buf.toString('utf8'));
+                    client.on('end', () => {
+                        let data = JSON.parse(buf);
                         return resolve(data);
                     });
                 });
@@ -139,13 +147,17 @@ class Node extends EventEmitter {
             return new Promise((resolve, reject) => {
                 if (_.isEmpty(contacts)) return reject(Router.EmptyNetworkError());
 
-                const buf = new Buffer(JSON.stringify(value), 'utf8');
+                let clients = 0;
+                const buf = JSON.stringify(value)+Node.EOS_TOKEN;
                 let server = net.createServer(connection => {
+                    ++clients;
+
                     connection.on('error', err => { return reject(err); });
+                    connection.on('end', () => {
+                        if (--clients <= 0) server.close();
+                    });
 
                     connection.write(buf);
-                    // connection.end();
-                    connection.destroy();
                 });
                 server.on('error', err => { return reject(err); });
                 server.on('close', () => { console.log("Close server use to send PUT");});
@@ -170,7 +182,6 @@ class Node extends EventEmitter {
                     return res.contact;
                 });
             }).then(responses => {
-                // server.close();
                 return responses;
             });
         };
@@ -229,16 +240,13 @@ class Node extends EventEmitter {
 
             else if (message.method === 'FIND_VALUE') {
                 if (this._storage.has(message.params.key)) {
-                    const value = new Buffer(JSON.stringify(this._storage.get(message.params.key)), 'utf8');
+                    const value = JSON.stringify(this._storage.get(message.params.key))+Node.EOS_TOKEN;
                     let timeout, addr, port;
                     let server = net.createServer(connection => {
                         clearTimeout(timeout);
-                        console.log(value.length,"bytes");
                         connection.on('error', err => { throw err; });
+                        connection.on('end', () => { server.close(); });
                         connection.write(value);
-                        connection.end();
-                        connection.destroy();
-                        server.close();
                     });
                     server.on('error', err => { throw err; });
                     server.on('close', () => { console.log("Closed TCP server",addr,port); });
@@ -262,17 +270,23 @@ class Node extends EventEmitter {
                 this._rpc.sendAsync(pong, contact);
 
                 if (!this._storage.has(key)) {
-                    let buffers = [];
+                    let buf = '';
+                    const EOS_TOKEN = Node.EOS_TOKEN;
 
                     console.log("Connecting to "+addr+":"+port+" to get data needed for store");
                     let client = net.createConnection(port, addr);
+                    client.setEncoding('utf8');
+
                     client.on('error', (err) => { throw err; });
                     client.on('data', (data) => {
-                        buffers.push(data);
+                        if (data.slice(-EOS_TOKEN.length) === EOS_TOKEN) {
+                            buf += data.slice(0, -EOS_TOKEN.length);
+                            client.end();
+                        }
+                        else buf += data;
                     });
-                    client.on('close', () => {
-                        let buf = Buffer.concat(buffers);
-                        let data = JSON.parse(buf.toString('utf8'));
+                    client.on('end', () => {
+                        let data = JSON.parse(buf);
                         this._storage.set(key, data);
                         console.log("LETS GOOO "+buf.length+" bytes");
                     });
