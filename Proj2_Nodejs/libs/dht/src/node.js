@@ -14,6 +14,7 @@ const TCP = require('./transport').TPC;
 const UDP = require('./transport').UDP;
 const utils = require('./utils.js');
 const constants = require('./constants.js');
+const transfer = require('./transfer.js');
 
 class Node extends EventEmitter {
     constructor(contact, { transport } = {}) {
@@ -106,29 +107,10 @@ class Node extends EventEmitter {
         if (this._storage.has(hashed)) return Promise.resolve(this._storage.get(hashed));
 
         return this._router.findValue(hashed)
-            .then(({ addr, port }) => {
-                console.log("Trying to get data through TCP");
-                console.log(addr, port);
-                return new Promise((resolve, reject) => {
-                    let buf = '';
-                    const EOS_TOKEN = Node.EOS_TOKEN;
-
-                    let client = net.createConnection(port, addr);
-                    client.setEncoding('utf8');
-
-                    client.on('error', (err) => { return reject(err); });
-                    client.on('data', (data) => {
-                        if (data.slice(-EOS_TOKEN.length) === EOS_TOKEN) {
-                            buf += data.slice(0, -EOS_TOKEN.length);
-                            client.end();
-                        }
-                        else buf += data;
-                    });
-                    client.on('end', () => {
-                        let data = JSON.parse(buf);
-                        return resolve(data);
-                    });
-                });
+            .then(({ address, port }) => {
+                console.log("Trying to GET data through TCP",address,port);
+                let client = transfer.createClient('tcp', port, address);
+                return client.connect();
             });
     }
 
@@ -144,40 +126,19 @@ class Node extends EventEmitter {
             return this._router.getNearestContacts(hashed, constants.K, this.contact.nodeID);
         };
         const createServer = (contacts) => {
-            return new Promise((resolve, reject) => {
-                if (_.isEmpty(contacts)) return reject(Router.EmptyNetworkError());
+                if (_.isEmpty(contacts)) throw new Router.EmptyNetworkError();
 
-                let clients = 0;
-                const buf = JSON.stringify(value)+Node.EOS_TOKEN;
-                let server = net.createServer(connection => {
-                    ++clients;
+                let server = transfer.createServer('tcp');
+                server.setData(value);
 
-                    connection.on('error', err => { return reject(err); });
-                    connection.on('end', () => {
-                        if (--clients <= 0) server.close();
+                return server.listen()
+                    .then(server_contact => {
+                        return {contacts, server_contact};
                     });
-
-                    connection.write(buf);
-                });
-                server.on('error', err => { return reject(err); });
-                server.on('close', () => { console.log("Close server use to send PUT");});
-                server.listen(0, '127.0.0.1', () => {
-                    const addr = server.address().address;
-                    const port = server.address().port;
-
-                    console.log("Created server to send data at "+addr+":"+port);
-                    return resolve({contacts, server});
-                });
-
-                return undefined;
-            });
         };
-        const sendStoreToContacts = ({ contacts, server }) => {
-            const { address:addr, port } = server.address();
-            const TCPContact = {addr:addr,port:port};
-
+        const sendStoreToContacts = ({ contacts, server_contact }) => {
             return Promise.map(contacts, (c) => {
-                const store_msg = Message.createMessage('STORE', {key: hashed, value: TCPContact, contact: this.contact});
+                const store_msg = Message.createMessage('STORE', {key: hashed, value: server_contact, contact: this.contact});
                 return this._rpc.sendAsync(store_msg, c).then((res) => {
                     return res.contact;
                 });
@@ -218,8 +179,6 @@ class Node extends EventEmitter {
         let contact = message.contact;
         this._router.addContact(contact);
 
-        // if (message.isResponse()) console.log(message.result);
-
         if (message.isRequest()) {
 
             const sendNearest = (key) => {
@@ -240,56 +199,32 @@ class Node extends EventEmitter {
 
             else if (message.method === 'FIND_VALUE') {
                 if (this._storage.has(message.params.key)) {
-                    const value = JSON.stringify(this._storage.get(message.params.key))+Node.EOS_TOKEN;
-                    let timeout, addr, port;
-                    let server = net.createServer(connection => {
-                        clearTimeout(timeout);
-                        connection.on('error', err => { throw err; });
-                        connection.on('end', () => { server.close(); });
-                        connection.write(value);
-                    });
-                    server.on('error', err => { throw err; });
-                    server.on('close', () => { console.log("Closed TCP server",addr,port); });
-                    server.listen(0, '127.0.0.1', () => {
-                        timeout = setTimeout(()=>{ console.log("Timeout"); server.close(); }, 500);
-                        addr = server.address().address;
-                        port = server.address().port;
-                        console.log("Created TCP server to send data", addr, port);
-                        const res = Message.fromRequest(message, {value: {addr,port}, contact: this.contact});
-                        this._rpc.sendAsync(res, contact);
-                    });
+                    let server = transfer.createServer('tcp');
+                    server.setData(this._storage.get(message.params.key));
+
+                    server.listen()
+                        .then(server_contact => {
+                            const res = Message.fromRequest(message, {value: server_contact, contact: this.contact});
+                            this._rpc.sendAsync(res, contact);
+                        });
                 }
                 else sendNearest(message.params.key);
             }
 
             else if (message.method === 'STORE') {
                 const { key, value } = message.params;
-                const { addr, port } = value;
+                const { address, port } = value;
 
                 const pong = Message.fromRequest(message, {contact: this.contact});
                 this._rpc.sendAsync(pong, contact);
 
                 if (!this._storage.has(key)) {
-                    let buf = '';
-                    const EOS_TOKEN = Node.EOS_TOKEN;
-
-                    console.log("Connecting to "+addr+":"+port+" to get data needed for store");
-                    let client = net.createConnection(port, addr);
-                    client.setEncoding('utf8');
-
-                    client.on('error', (err) => { throw err; });
-                    client.on('data', (data) => {
-                        if (data.slice(-EOS_TOKEN.length) === EOS_TOKEN) {
-                            buf += data.slice(0, -EOS_TOKEN.length);
-                            client.end();
-                        }
-                        else buf += data;
-                    });
-                    client.on('end', () => {
-                        let data = JSON.parse(buf);
-                        this._storage.set(key, data);
-                        console.log("LETS GOOO "+buf.length+" bytes");
-                    });
+                    let client = transfer.createClient('tcp', port, address);
+                    client.connect()
+                        .then(data => {
+                            console.log("Whoop");
+                            this._storage.set(key, data);
+                        });
                 }
             }
         }

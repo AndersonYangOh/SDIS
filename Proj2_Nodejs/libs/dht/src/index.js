@@ -13,6 +13,7 @@ module.exports = {
     EError : require('./error.js'),
     KBucket : require('./kbucket.js'),
     Contact : require('./contact.js'),
-    constants : require('./constants.js')
+    constants : require('./constants.js'),
+    transfer : require('./transfer.js')
 };
 
