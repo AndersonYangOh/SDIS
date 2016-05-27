@@ -112,7 +112,6 @@ class Node extends EventEmitter {
                     let client = net.createConnection(port, addr);
                     client.on('error', (err) => { return reject(err); });
                     client.on('data', (data) => {
-                        console.log("Whoop "+data.length+" bytes");
                         buffers.push(data);
                     });
                     client.on('close', () => {
@@ -145,10 +144,11 @@ class Node extends EventEmitter {
                     connection.on('error', err => { return reject(err); });
 
                     connection.write(buf);
-                    connection.end();
+                    // connection.end();
                     connection.destroy();
                 });
                 server.on('error', err => { return reject(err); });
+                server.on('close', () => { console.log("Close server use to send PUT");});
                 server.listen(0, '127.0.0.1', () => {
                     const addr = server.address().address;
                     const port = server.address().port;
@@ -162,19 +162,15 @@ class Node extends EventEmitter {
         };
         const sendStoreToContacts = ({ contacts, server }) => {
             const { address:addr, port } = server.address();
-            const store_msg = Message.createMessage('STORE', {key: hashed, value: {addr:addr, port:port}, contact: this.contact});
+            const TCPContact = {addr:addr,port:port};
 
-            let stores = Promise.map(contacts, (c => {
-                console.log("OMFG");
-                return this._rpc.sendAsync(store_msg, c)
-                    .then(res => {
-                        console.log("fuck this");
-                        return res.contact;
-                    });
-            }));
-
-            return stores.then(responses => {
-                server.close();
+            return Promise.map(contacts, (c) => {
+                const store_msg = Message.createMessage('STORE', {key: hashed, value: TCPContact, contact: this.contact});
+                return this._rpc.sendAsync(store_msg, c).then((res) => {
+                    return res.contact;
+                });
+            }).then(responses => {
+                // server.close();
                 return responses;
             });
         };
@@ -211,7 +207,7 @@ class Node extends EventEmitter {
         let contact = message.contact;
         this._router.addContact(contact);
 
-        if (message.isResponse()) console.log(message.result);
+        // if (message.isResponse()) console.log(message.result);
 
         if (message.isRequest()) {
 
@@ -260,9 +256,6 @@ class Node extends EventEmitter {
 
             else if (message.method === 'STORE') {
                 const { key, value } = message.params;
-                // if (!this._storage.has(key)) {
-                //     this._storage.set(key, value);
-                // }
                 const { addr, port } = value;
 
                 const pong = Message.fromRequest(message, {contact: this.contact});
@@ -275,14 +268,13 @@ class Node extends EventEmitter {
                     let client = net.createConnection(port, addr);
                     client.on('error', (err) => { throw err; });
                     client.on('data', (data) => {
-                        console.log("Whoop "+data.length+" bytes");
                         buffers.push(data);
                     });
-                    client.on('end', () => {
-                        console.log("LETS GOOO");
+                    client.on('close', () => {
                         let buf = Buffer.concat(buffers);
                         let data = JSON.parse(buf.toString('utf8'));
-                        this._storage.set(key, value);
+                        this._storage.set(key, data);
+                        console.log("LETS GOOO "+buf.length+" bytes");
                     });
                 }
             }
