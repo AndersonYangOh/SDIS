@@ -135,23 +135,6 @@ class Router extends EventEmitter {
             addNearest(this._kbuckets.get(i));
         }
 
-        // global.log.info("Me: " + this._contact);
-        // console.log("Requester: " + nodeID);
-        // console.log("Returning "+nearest.length+" from "+this.length+". Needed "+limit);
-        // console.log(Array.from(this.buckets.keys()));
-        // console.log(prefix);
-        // console.log("---------------------");
-        // _.each(nearest, (c) => console.log(c+""));
-        // console.log("---------------------");
-        // if (nearest.length < this.length && this.length < limit) {
-        //     let buck = Array.from(this.buckets.values());
-        //     buck = _.map(buck, b => b._contacts );
-        //     buck = _.flatten(buck);
-        //     buck = _.map(buck, c => { return {contact: c, distance: Key.distance(key, c.nodeID)}; });
-        //     buck = buck.sort((c1,c2) => Key.compare(c1.distance, c2.distance));
-        //     _.each(buck, c => console.log(c.contact+""+c.distance.readUInt8()));
-        // }
-
         return nearest;
     }
 
@@ -215,14 +198,19 @@ class Router extends EventEmitter {
                 state.closestNodeDistance = dist;
             }
 
-            if (state.type === 'NODE') {
+            const updateShortlist = (nodes) => {
                 let new_nodes = _.map(res.result.nodes, (c) => { return new Contact(c); });
                 let tmp = _.concat(state.shortList, new_nodes);
                 state.shortList = _.uniqWith(tmp, (a,b) => a.equals(b));
+            };
+
+            if (state.type === 'NODE') {
+                updateShortlist(res.result.nodes);
             }
             else if (state.type === 'VALUE') {
                 if (!res.result.value) {
                     state.withoutValue.push(contact);
+                    updateShortlist(res.result.nodes);
                 }
                 else {
                     state.found = true;
@@ -234,7 +222,7 @@ class Router extends EventEmitter {
         };
         const handleResults = ({ state }) => {
             if (state.found) {
-                return state.value;
+                return {value: state.value, closest: _.last(state.withoutValue)};
             }
 
             let noneCloser = state.closestNode.equals(state.prevClosestNode);

@@ -109,10 +109,27 @@ class Node extends EventEmitter {
         if (this._storage.has(hashed)) return Promise.resolve(this._storage.get(hashed));
 
         return this._router.findValue(hashed)
-            .then(({ address, port }) => {
+            .then(({ value:{ address, port }, closest }) => {
                 console.log("Trying to GET data through TCP",address,port);
                 let client = transfer.createClient('tcp', port, address);
-                return client.connect();
+                return client.connect()
+                    .then( data => {
+                        return {data:data, closest:closest};
+                    });
+            })
+            .then(( { data, closest }) => {
+                if (closest) {
+                    global.log.info("Storing data on closest node without value", closest);
+                    let server = transfer.createServer('tcp', 0, this.contact.address);
+                    server.setData(data);
+                    server.listen()
+                        .then(server_contact => {
+                            const store_msg = Message.createMessage('STORE', {key: hashed, value: server_contact, contact: this.contact});
+                            return this._rpc.sendAsync(store_msg, closest);
+                        })
+                        .catch(err => global.log.err(err));
+                }
+                return data;
             });
     }
 
