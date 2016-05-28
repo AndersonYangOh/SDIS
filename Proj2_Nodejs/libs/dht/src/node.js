@@ -126,15 +126,15 @@ class Node extends EventEmitter {
             return this._router.getNearestContacts(hashed, constants.K, this.contact.nodeID);
         };
         const createServer = (contacts) => {
-                if (_.isEmpty(contacts)) throw new Router.EmptyNetworkError();
+            if (_.isEmpty(contacts)) throw new Router.EmptyNetworkError();
 
-                let server = transfer.createServer('tcp');
-                server.setData(value);
+            let server = transfer.createServer('tcp', 0, this.contact.address);
+            server.setData(value);
 
-                return server.listen()
-                    .then(server_contact => {
-                        return {contacts, server_contact};
-                    });
+            return server.listen()
+                .then(server_contact => {
+                    return {contacts, server_contact};
+                });
         };
         const sendStoreToContacts = ({ contacts, server_contact }) => {
             return Promise.map(contacts, (c) => {
@@ -199,7 +199,7 @@ class Node extends EventEmitter {
 
             else if (message.method === 'FIND_VALUE') {
                 if (this._storage.has(message.params.key)) {
-                    let server = transfer.createServer('tcp');
+                    let server = transfer.createServer('tcp', 0, this.contact.address);
                     server.setData(this._storage.get(message.params.key));
 
                     server.listen()
