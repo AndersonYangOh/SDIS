@@ -28,7 +28,7 @@ class File {
     }
 
     static loadFile(filepath) {
-        const p = path.normalize(path.join(__dirname, filepath));
+        const p = path.normalize(filepath);
         try {
             const fileInfo = {
                 path: path.parse(p),
@@ -43,7 +43,7 @@ class File {
     static saveFile(data, filepath) {
         assert(data instanceof Buffer);
 
-        let p = path.normalize(path.join(__dirname, filepath));
+        let p = path.normalize(filepath);
         fs.writeFileAsync(p, data);
     }
 }

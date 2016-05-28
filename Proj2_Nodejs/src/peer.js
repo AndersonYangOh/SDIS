@@ -2,16 +2,12 @@
 
 const Promise = require('bluebird');
 const DHT = require('../libs/dht');
-const _ = require('lodash');
-const minimist = require('minimist');
-const readline = require('readline');
 const hat = require('hat');
 const crypto = require('crypto');
 const path = require('path');
 
 const File = require('./file.js');
 
-global.log = DHT.Logger;
 
 class Peer {
     constructor({ contact } = {}) {
@@ -117,110 +113,15 @@ class Peer {
             });
     }
 
-}
+    info({} = {}) {
+        let info = {};
+        info.contact = this._node.contact;
+        info.network = this._node._router.length;
+        info.storage = this._node._storage.size;
 
-const createPeers = ({ address, port }, n) => {
-    let peers = _.times(n, (i) => { return new Peer({contact: {address: address, port: port+i}}); });
-    return Promise.map(peers, peer => peer.connect());
-};
-
-const createNetwork = (peers) => {
-    return Promise.map(peers, (node, i) => {
-        return peers[i].connect(peers[i+1]).then((peer)=>{
-            DHT.Logger.success("Peer "+(i+1)+" connected");
-            return peer;
-        });
-    });
-};
-
-const argv = minimist(process.argv.slice(2));
-console.log(argv);
-
-let contact_regex = /(?:(\d{1,3}(?:\.\d{1,3}){3}):)?(\d+)/;
-if (!contact_regex.test(argv._[0])) throw new TypeError("Invalid contact provided");
-
-const tmp = contact_regex.exec(argv._[0]);
-
-let contact = {
-    address: tmp[1] || '127.0.0.1',
-    port: Number(tmp[2])
-};
-
-let peer;
-if (argv.j) {
-    const addr = argv.j.split(':')[0];
-    const port = Number(argv.j.split(':')[1]);
-    peer = new Peer({contact: contact});
-    peer.connect({address: addr, port: port});
-}
-else if (argv.n) {
-    const num = Number(argv.n);
-    createPeers(contact, num)
-        .then(createNetwork)
-        .then(peers => {
-            _.each(peers, (p, i) => {
-                DHT.Logger.info("Peer "+(i+1)+": "+p._node._router.length+" contacts");
-            });
-        });
-}
-else {
-    peer = new Peer({contact:contact});
-    peer.connect();
-}
-
-
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-rl.setPrompt('PeerCLI > ');
-rl.prompt();
-
-rl.on('line', (line) => {
-    let args = line.trim().split(" ");
-    let op = args[0].toLowerCase();
-    // console.log(args, op);
-    switch(op) {
-    case 'connect':
-        {
-            let contact;
-            if (args[1]) {
-                const addr = args[1].split(":")[0];
-                const port = Number(args[1].split(":")[1]);
-                contact = {address:addr,port:port};
-            }
-
-            console.log(contact);
-            peer.connect(contact)
-                .then(()=>rl.prompt());
-        }
-        break;
-    case 'disconnect':
-        {
-            peer.disconnect();
-            rl.prompt();
-        }
-        break;
-    case 'get':
-        {
-            const filename = args[1];
-            const password = args[2];
-            peer.get(filename, password).then(()=>rl.prompt());
-        }
-        break;
-    case 'put':
-        {
-            const filepath = args[1];
-            const password = args[2];
-            peer.put(filepath, password).then(()=>rl.prompt());
-        }
-        break;
-    case '':
-        rl.prompt();
-        break;
-    default:
-        console.log("Invalid operation");
-        rl.prompt();
-        break;
+        return info;
     }
-});
+}
+
+module.exports = Peer;
+module.exports.DHT = DHT;
