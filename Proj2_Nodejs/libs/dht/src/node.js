@@ -21,7 +21,7 @@ class Node extends EventEmitter {
         super();
 
         if (!(contact instanceof Contact)) contact = new Contact(contact);
-        transport = transport || new TCP(contact);
+        transport = transport || new UDP(contact);
 
         this.contact = contact;
         this._rpc = transport;

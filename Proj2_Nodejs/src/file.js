@@ -29,13 +29,15 @@ class File {
 
     static loadFile(filepath) {
         const p = path.normalize(path.join(__dirname, filepath));
-        const fileInfo = {
-            path: path.parse(p),
-            stat: fs.lstatSync(p)
-        };
-        return fs.readFileAsync(p).then( data => {
-            return { info: fileInfo, data: data };
-        });
+        try {
+            const fileInfo = {
+                path: path.parse(p),
+                stat: fs.lstatSync(p)
+            };
+            return fs.readFileAsync(p).then( data => {
+                return { info: fileInfo, data: data };
+            });
+        } catch (err) { return Promise.reject(err); }
     }
 
     static saveFile(data, filepath) {
