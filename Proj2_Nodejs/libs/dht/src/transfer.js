@@ -43,7 +43,7 @@ class TCPDataServer extends DataServer {
         this.clients = 0;
     }
     _createSocket() {
-        let timeout;
+        let timeout = setTimeout(() => {this.socket.close();}, 2000);
         this.buffer = JSON.stringify(this.data)+EOS_TOKEN;
         this.socket = net.createServer(client => {
             clearTimeout(timeout);

@@ -27,6 +27,8 @@ class Node extends EventEmitter {
         this._rpc = transport;
         this._router = new Router(contact, {transport: this._rpc});
         this._storage = new Map();
+        this._replicateTimer = setInterval(this._republishDB.bind(this), constants.tReplicate);
+        // this._expireTimer = setInterval(this._checkExpires.bind(this), constants.tExpire);
     }
     get id() {return this.contact.nodeID;}
 
@@ -228,6 +230,14 @@ class Node extends EventEmitter {
                 }
             }
         }
+    }
+
+    _republishDB() {
+        global.log.warning("Republish entire database");
+        return Promise.map(this._storage, ([ key, val ]) => {
+            console.log(val.key);
+            return this.put(val.key, val.value);
+        }).then( () => global.log.success("Successfully republished database"));
     }
 }
 
