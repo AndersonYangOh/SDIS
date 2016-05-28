@@ -14,7 +14,7 @@ class RPC extends EventEmitter {
         super();
 
         this._contact = contact;
-        this._pending = {};
+        this._pending = new Map();
         this._connected = false;
         this._connecting = false;
     }
@@ -22,6 +22,7 @@ class RPC extends EventEmitter {
         return this._open();
     }
     close(callback) {
+        this._pending = new Map();
         this._close();
     }
     send(message, contact, callback) {
@@ -29,10 +30,10 @@ class RPC extends EventEmitter {
         assert(contact instanceof Contact, 'Invalid contact provided');
 
         if (message.isRequest() && typeof callback === 'function') {
-            this._pending[message.id] = {
+            this._pending.set(message.id, {
                 timeStamp: Date.now(),
                 callback: callback
-            };
+            });
         }
         else if (message.isResponse() && typeof callback === 'function')
             callback();
@@ -48,7 +49,7 @@ class RPC extends EventEmitter {
         })
             .timeout(5000).catch(Promise.TimeoutError, (e) => {
                 global.log.error("Didn't get response in time for message:", message.method);
-                delete this._pending[message.id];
+                this._pending.delete(message.id);
                 throw e;
             });
     }
@@ -58,13 +59,10 @@ class RPC extends EventEmitter {
         let message = Message.fromBuffer(buffer);
 
         let type = message.isRequest() ? 'REQUEST' : 'RESPONSE';
-        // console.log(chalk.black.bgGreen("Received "+type+" from ")+chalk.black.bgCyan(new Contact(remote)));
-        // console.log(message);
 
-        let pending = this._pending[message.id];
-        if (message.isResponse() && pending) {
-            pending.callback(null, message);
-            delete this._pending[message.id];
+        if (message.isResponse() && this._pending.has(message.id)) {
+            this._pending.get(message.id).callback(null, message);
+            this._pending.delete(message.id);
         }
 
         this.emit('incoming', message, remote);

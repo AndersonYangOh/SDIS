@@ -21,7 +21,7 @@ class Node extends EventEmitter {
         super();
 
         if (!(contact instanceof Contact)) contact = new Contact(contact);
-        transport = transport || new UDP(contact);
+        transport = transport || new TCP(contact);
 
         this.contact = contact;
         this._rpc = transport;
@@ -174,7 +174,7 @@ class Node extends EventEmitter {
     }
 
     _incoming(message, remote) {
-        const remote_contact = new Contact(remote);
+        // const remote_contact = new Contact(remote);
 
         let contact = message.contact;
         this._router.addContact(contact);
