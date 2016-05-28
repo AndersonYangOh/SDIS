@@ -31,7 +31,7 @@ class UDPTransport extends RPC {
                 // console.error("UDP Socket couldn't open on port:",port);
                 reject(err);
             });
-            this._socket.bind(port);
+            this._socket.bind(port, '0.0.0.0');
             return undefined;
         });
     }

@@ -92,8 +92,8 @@ class Peer {
 
 }
 
-const createPeers = (n) => {
-    let peers = _.times(n, (i) => { return new Peer({contact: {port:10000+i}}); });
+const createPeers = ({ address, port }, n) => {
+    let peers = _.times(n, (i) => { return new Peer({contact: {address: address, port: port+i}}); });
     return Promise.map(peers, peer => peer.connect());
 };
 
@@ -106,19 +106,29 @@ const createNetwork = (peers) => {
     });
 };
 
-const argv = minimist(process.argv);
+const argv = minimist(process.argv.slice(2));
 console.log(argv);
+
+let contact_regex = /(?:(\d{1,3}(?:\.\d{1,3}){3}):)?(\d+)/;
+if (!contact_regex.test(argv._[0])) throw new TypeError("Invalid contact provided");
+
+const tmp = contact_regex.exec(argv._[0]);
+
+let contact = {
+    address: tmp[1] || '127.0.0.1',
+    port: Number(tmp[2])
+};
 
 let peer;
 if (argv.j) {
     const addr = argv.j.split(':')[0];
     const port = Number(argv.j.split(':')[1]);
-    peer = new Peer({contact:{port:6000}});
+    peer = new Peer({contact: contact});
     peer.connect({address: addr, port: port});
 }
 else if (argv.n) {
     const num = Number(argv.n);
-    createPeers(num)
+    createPeers(contact, num)
         .then(createNetwork)
         .then(peers => {
             _.each(peers, (p, i) => {
@@ -127,7 +137,7 @@ else if (argv.n) {
         });
 }
 else {
-    peer = new Peer({contact:{port:6000}});
+    peer = new Peer({contact:contact});
     peer.connect();
 }
 
