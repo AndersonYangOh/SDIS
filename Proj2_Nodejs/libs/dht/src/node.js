@@ -110,7 +110,6 @@ class Node extends EventEmitter {
 
         return this._router.findValue(hashed)
             .then(({ value:{ address, port }, closest }) => {
-                console.log("Trying to GET data through TCP",address,port);
                 let client = transfer.createClient('tcp', port, address);
                 return client.connect()
                     .then( data => {
@@ -166,7 +165,7 @@ class Node extends EventEmitter {
             });
         };
         const handleResponses = (responses) => {
-            console.log(responses.length+" contacts have stored the value.");
+            global.log.success(responses.length+" contacts have stored the value.");
             if (responses.length < 3 && !this._storage.has(hashed)) {
                 this._storage.set(hashed, value);
                 responses.push(this.contact);
@@ -241,7 +240,6 @@ class Node extends EventEmitter {
                     let client = transfer.createClient('tcp', port, address);
                     client.connect()
                         .then(data => {
-                            console.log("Whoop");
                             this._storage.set(key, data);
                         });
                 }
@@ -252,7 +250,6 @@ class Node extends EventEmitter {
     _republishDB() {
         global.log.warning("Republish entire database");
         return Promise.map(this._storage, ([ key, val ]) => {
-            console.log(val.key);
             return this.put(val.key, val.value);
         }).then( () => global.log.success("Successfully republished database"));
     }

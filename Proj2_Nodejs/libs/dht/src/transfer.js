@@ -49,15 +49,13 @@ class TCPDataServer extends DataServer {
             clearTimeout(timeout);
             client.setEncoding('utf8');
             let [address, port] = [client.remoteAddress, client.remotePort];
-            console.log("Client connected "+address+":"+port);
             ++this.clients;
 
             client.on('error', err => {
-                console.log("Error in "+address+":"+port);
+                global.log.error("Error in "+address+":"+port);
                 Promise.reject(err);
             });
             client.on('end', () => {
-                console.log("Client disconnected "+address+":"+port);
                 if (--this.clients <= 0) {
                     timeout = setTimeout(() => {this.socket.close();}, 500);
                 }
@@ -65,7 +63,7 @@ class TCPDataServer extends DataServer {
             client.write(this.buffer);
         });
         this.socket.on('error', err => Promise.reject(err));
-        this.socket.on('close', () => { console.log("Closed data server ", this.contact);});
+        // this.socket.on('close', () => { console.log("Closed data server ", this.contact);});
     }
 
     _listen() {
@@ -76,7 +74,7 @@ class TCPDataServer extends DataServer {
                 const { address:addr, port:p } = this.socket.address();
                 this.contact = {address:addr, port:p};
 
-                console.log("Created data server ", this.contact);
+                // console.log("Created data server ", this.contact);
                 return resolve(this.contact);
             });
         });
@@ -92,7 +90,6 @@ class TCPDataClient extends DataClient {
         const { address, port } = this.contact;
 
         let socket = net.createConnection(port, address, () => {
-            console.log("Connecting to TCP server: ", this.contact);
         });
         socket.setEncoding('utf8');
 
@@ -102,14 +99,12 @@ class TCPDataClient extends DataClient {
                 if (data.slice(-EOS_TOKEN.length) === EOS_TOKEN) {
                     this.buffer += data.slice(0, -EOS_TOKEN.length);
                     socket.end();
-                    console.log("Disconnecting from TCP server: ", this.contact);
                     const data2 = JSON.parse(this.buffer);
                     resolve(data2);
                 }
                 else this.buffer += data;
             });
             socket.on('end', () => {
-                console.log("Disconnecting from TCP server: ", this.contact);
             });
         });
     }

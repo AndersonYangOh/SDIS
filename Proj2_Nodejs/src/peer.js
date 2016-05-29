@@ -18,7 +18,7 @@ class Peer {
         let contact = arg1;
         if (arg1 instanceof Peer) contact = arg1._node.contact;
 
-        return this._node.connect(contact).then(()=>console.log("Connected to ",this._node._router.length)).return(this);
+        return this._node.connect(contact).then().return(this);
     }
 
     disconnect() {
@@ -31,7 +31,6 @@ class Peer {
         };
         const handleMetaData = ({ key, data }) => {
             const metadata = JSON.parse(data);
-            console.log(metadata);
             if (metadata.encrypted && !password) throw new Error("No password provided for encrypted file");
             return metadata;
         };
